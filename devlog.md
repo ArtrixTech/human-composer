@@ -44,4 +44,4 @@
 - 外部源接口（`sources.rs`：`ProjectSource` trait + `ManualSource` 实现，预留 Linear/GitHub 扩展点）
 - Tauri 事件总线：所有状态变更通过 emit 广播，主窗口与悬浮窗跨窗口状态自动同步
 
-**Commit:** _(pending)_
+**Commit:** `f113ccd`
