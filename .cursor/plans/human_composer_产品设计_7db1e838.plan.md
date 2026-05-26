@@ -4,10 +4,10 @@ overview: Human Composer 的完整产品设计方案，涵盖核心数据模型�
 todos:
   - id: update-docs
     content: "更新 AGENTS.md（新增设计哲学 #3 #4）和 devlog.md"
-    status: pending
+    status: completed
   - id: phase1-data-model
     content: "Phase 1: 数据模型 + SQLite + CRUD + 泳道 DAG 渲染 + 基础 UI 框架"
-    status: pending
+    status: in_progress
   - id: phase2-interaction
     content: "Phase 2: Inbox + 任务分配 + 状态流转 + 依赖编辑 + 悬浮窗 + 菜单栏"
     status: pending
