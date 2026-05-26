@@ -1,0 +1,406 @@
+---
+name: Human Composer 产品设计
+overview: Human Composer 的完整产品设计方案，涵盖核心数据模型、分层交互、UI 组件层级、推荐逻辑、菜单栏指示器，以及分阶段实施路径。
+todos:
+  - id: update-docs
+    content: "更新 AGENTS.md（新增设计哲学 #3 #4）和 devlog.md"
+    status: pending
+  - id: phase1-data-model
+    content: "Phase 1: 数据模型 + SQLite + CRUD + 泳道 DAG 渲染 + 基础 UI 框架"
+    status: pending
+  - id: phase2-interaction
+    content: "Phase 2: Inbox + 任务分配 + 状态流转 + 依赖编辑 + 悬浮窗 + 菜单栏"
+    status: pending
+  - id: phase3-intelligence
+    content: "Phase 3: 推荐引擎 + 完成→推荐循环 + 归档"
+    status: pending
+  - id: phase4-enhancement
+    content: "Phase 4: 全局快捷键 + 命令面板 + 语音输入 + 外部源接口"
+    status: pending
+isProject: false
+---
+
+# Human Composer 产品设计与实施方案
+
+## 设计哲学
+
+1. **Minimum effort** -- 用户输入以语音/自然语言为主；能自动化就自动化，能直观呈现就直观呈现
+2. **e/acc** -- 有效加速，帮助用户实现效率最大化
+3. **前额叶保护** -- 用户的前额叶资源有限，软件的核心效用是解放前额叶、延长前额叶在线时间；一切设计决策都应减少用户的认知负荷
+4. **细粒度、低阻力** -- 专注管理碎片化的具体任务，高触发频率要求记录和反馈流程极简
+
+### 哲学推导出的交互原则
+
+- **每个高频操作 <= 2 步完成**（minimum effort）
+- **系统主动呈现可执行洞察，而非被动展示数据**（e/acc）
+- **完成任务后零认知间隙：自动推荐下一个**（前额叶保护）
+- **无确认弹窗，误操作靠 Undo 挽回**（细粒度、低阻力）：操作即生效 + 1-2 秒 toast 提示含 Undo 按钮
+
+---
+
+## 分层交互模型
+
+用户的日常执行不依赖主窗口。三层交互面按认知成本递增排列：
+
+```mermaid
+flowchart LR
+    subgraph L1 ["Layer 1: 菜单栏"]
+        Tray["常驻图标 + 当前任务名"]
+        TrayMenu["下拉: 完成/切换/添加"]
+    end
+    subgraph L2 ["Layer 2: 常驻悬浮窗"]
+        Collapsed["折叠态: 小卡片"]
+        Expanded["展开态: 完成/推荐/添加"]
+    end
+    subgraph L3 ["Layer 3: 主窗口"]
+        DAG["泳道 DAG 编排"]
+        InboxMgr["Inbox 管理"]
+        DepEdit["依赖/支线管理"]
+    end
+    Tray --> TrayMenu
+    TrayMenu -->|"打开面板"| Expanded
+    Collapsed -->|"点击展开"| Expanded
+    Expanded -->|"深度编辑"| DAG
+```
+
+- **Layer 1 菜单栏**：零成本 glance，一键完成当前任务
+- **Layer 2 悬浮窗**：日常执行的主界面，折叠时为小卡片常驻屏幕边缘，展开后支持完整的「完成→推荐→开始」循环
+- **Layer 3 主窗口**：规划编排、全局视图、依赖管理
+
+### 核心执行循环
+
+```mermaid
+flowchart TD
+    Complete["用户完成当前任务 (任意 Layer)"]
+    Toast["Toast: 已完成 xxx (1-2s, 含 Undo)"]
+    Recalc["系统重新计算推荐"]
+    Popup["弹出推荐: 下一个建议任务"]
+    UserChoice{"用户选择"}
+    StartRec["开始推荐的任务"]
+    PickOther["从 Ready 列表选其他"]
+    Dismiss["暂不开始"]
+    NewActive["新 Active 任务 → 更新所有 Layer"]
+    Idle["无 Active → 菜单栏/悬浮窗显示待选列表"]
+
+    Complete --> Toast --> Recalc --> Popup --> UserChoice
+    UserChoice -->|"确认"| StartRec --> NewActive
+    UserChoice -->|"选其他"| PickOther --> NewActive
+    UserChoice -->|"关闭"| Dismiss --> Idle
+```
+
+---
+
+## UI 组件层级
+
+### Layer 3: 主窗口
+
+```
+AppShell
++-- TitleBar (Tauri 自定义标题栏, 可拖拽)
++-- Sidebar (左侧, 可折叠)
+|   +-- ProjectList
+|   |   +-- ProjectItem (点击切换项目)
+|   +-- AddProjectButton
++-- MainContent
+|   +-- ProjectHeader (项目名 + 统计: N active / N ready)
+|   +-- DAGCanvas (React Flow 画布, 占满剩余空间)
+|   |   +-- BranchLane (每条支线一行, 含标签)
+|   |   +-- TaskNode (自定义节点, 按状态着色)
+|   |   +-- SequentialEdge (同支线, 实线)
+|   |   +-- BlockingEdge (跨支线, 虚线)
+|   |   +-- AddTaskHandle (支线末尾的 + 按钮)
+|   +-- InboxPanel (底部抽屉, 可展开/收起)
+|       +-- QuickAddInput (输入框, Enter 即创建)
+|       +-- InboxTaskList
+|           +-- InboxTaskItem (可拖拽到 DAG)
++-- DetailPanel (右侧滑出, 点击任务节点时出现)
+|   +-- TaskTitle (可编辑)
+|   +-- TaskDescription (可编辑)
+|   +-- StatusBadge + ActionButtons
+|   +-- DependencyList (此任务的上下游)
+|   +-- ContextInfo (所属项目/支线)
++-- ToastContainer (右下角, 操作反馈 + Undo)
+```
+
+### Layer 2: 常驻悬浮窗
+
+```
+FloatingWidget (macOS 窗口, always-on-top, 可拖拽定位)
++-- CollapsedState (默认, 小卡片 ~200x48px)
+|   +-- ActiveTaskBadge (任务名截断)
+|   +-- QuickCompleteButton (勾选图标)
++-- ExpandedState (点击展开, ~320x400px)
+    +-- CurrentTaskSection
+    |   +-- TaskName + ProjectBranch 标签
+    |   +-- CompleteButton (醒目)
+    +-- RecommendSection (完成后自动出现)
+    |   +-- RecommendedTask (高亮, 含 Start 按钮)
+    |   +-- ReadyTaskList (其他可执行任务, 可点击切换)
+    +-- QuickAddInput (底部输入框, 添加到 Inbox)
+    +-- FooterActions
+        +-- OpenMainWindow 按钮
+```
+
+### Layer 1: 菜单栏
+
+```
+TrayIcon (macOS 菜单栏)
++-- 图标 + 当前任务名 (截断, 可配置是否显示文字)
++-- TrayMenu (点击展开)
+    +-- CurrentTask: "正在: xxx" + [完成] 按钮
+    +-- Separator
+    +-- ReadyTasks: "推荐下一个:"
+    |   +-- TaskItem (点击 → 设为 Active)
+    |   +-- TaskItem ...
+    +-- Separator
+    +-- "快速添加任务..." (点击弹出输入)
+    +-- "打开 Human Composer"
+    +-- Separator
+    +-- "退出"
+```
+
+---
+
+## 核心概念模型
+
+```mermaid
+erDiagram
+    Project ||--o{ Branch : contains
+    Branch ||--o{ Task : contains
+    Task ||--o{ TaskDependency : "blocked_by"
+    Task {
+        string id PK
+        string branch_id FK
+        string title
+        string description
+        enum status
+        int sort_order
+        datetime created_at
+        datetime completed_at
+    }
+    Branch {
+        string id PK
+        string project_id FK
+        string name
+        int sort_order
+        bool archived
+    }
+    Project {
+        string id PK
+        string name
+        string source_type
+        string source_ref
+        datetime created_at
+    }
+    TaskDependency {
+        string task_id FK
+        string depends_on_task_id FK
+    }
+```
+
+### 层级关系
+
+- **Project**：顶层容器（例如"Human Composer 开发"、"博客重构"）。`source_type` 字段预留外部同步接口（`manual` / `linear` / `github` 等）
+- **Branch（支线/泳道）**：项目内的一条并行执行轨道（例如"前端开发"、"后端 API"、"设计"）。可归档
+- **Task**：支线内的具体可执行项，细粒度（几分钟到半小时级别）
+- **TaskDependency**：任务间的阻塞关系，支持跨支线依赖
+
+### 任务状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> Inbox: 创建
+    Inbox --> Pending: 分配到支线
+    Pending --> Ready: 依赖全部完成
+    Ready --> Active: 用户开始执行
+    Active --> Done: 用户标记完成
+    Active --> Ready: 用户暂停
+    Done --> [*]
+```
+
+- **Inbox**：刚创建，尚未分配到任何支线
+- **Pending**：已在支线中，但有未完成的前置依赖
+- **Ready**：所有依赖已满足，可以开始
+- **Active**：当前正在执行
+- **Done**：已完成
+
+---
+
+## 核心视觉：泳道 DAG
+
+### 布局规则
+
+```
+Project: Human Composer 开发
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 前端  ║ [登录页面] ──→ [Dashboard] ──→ [图表组件]
+       ║     ✓            ★ Active        ○ Ready
+━━━━━━━║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 后端  ║ [用户API] ──→ [认证中间件] ──┐
+       ║     ✓            ✓          │
+━━━━━━━║━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│━━━━━━━━━━━
+ 部署  ║          [CI 配置] ─────────→│ [首次部署]
+       ║             ○ Ready          └──→ ○ Ready
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+- 横轴：执行顺序（左 → 右）
+- 纵轴：并行支线（上下排列）
+- 节点：任务卡片，用颜色/图标区分状态
+- 边：同支线内为顺序关系，跨支线为阻塞依赖（虚线箭头）
+- **高亮**：Ready 状态的任务用醒目样式标出，Active 任务最突出
+
+### React Flow 实现要点
+
+- 自定义节点类型：`TaskNode`（不同状态有不同视觉样式）
+- 自定义边类型：`SequentialEdge`（同支线）、`BlockingEdge`（跨支线，虚线）
+- 自动布局算法：使用 dagre 或 elkjs 进行层级布局，按支线分组
+- 支持用户拖拽调整、缩放、平移
+
+---
+
+## 任务收集与分配
+
+### 任务输入入口（全部仅需任务名，Enter 即创建）
+
+- 主窗口 Inbox 底部抽屉的 QuickAddInput
+- 悬浮窗展开态底部的 QuickAddInput
+- 菜单栏下拉的 "快速添加任务"
+- 泳道内支线末尾的 + 按钮（直接创建在该支线，跳过 Inbox）
+
+### Inbox 到支线的分配
+
+- **手动**：从 Inbox 拖拽到泳道图的某条支线
+- **自动**（day 1）：创建时基于任务名关键词自动匹配支线，以推荐形式呈现，用户一键确认或修改
+- 支线末尾 + 按钮创建的任务直接跳过 Inbox，状态为 Pending 或 Ready（取决于依赖）
+
+---
+
+## "现在该做什么" 推荐逻辑
+
+### 算法
+
+1. **筛选**：所有 status = Ready 的任务
+2. **排序**（加权组合）：
+   - **关键路径优先**：阻塞下游任务最多的排前
+   - **支线均衡**：长时间未推进的支线权重提升（鼓励并行）
+   - **用户置顶**：手动标记的优先任务权重最高
+3. **呈现**：排序后的 Ready 列表，#1 为"推荐"，在 DAG 图 + 悬浮窗 + 菜单栏同步高亮
+
+### 完成→推荐循环（核心交互）
+
+用户在任意 Layer 完成任务后：
+1. Toast 反馈 (1-2s) + Undo
+2. 系统重算推荐
+3. 自动弹出推荐的下一个任务，用户确认开始 / 选其他 / 暂不开始
+4. 所有 Layer 同步更新状态
+
+---
+
+## 技术架构
+
+```mermaid
+flowchart TB
+    subgraph desktop ["Tauri 2 Desktop App"]
+        subgraph fe ["Frontend (React + TypeScript)"]
+            ReactFlow["React Flow DAG View"]
+            Inbox["Inbox Panel"]
+            MenuBar["Menu Bar Logic"]
+            StateStore["Zustand Store"]
+        end
+        subgraph be ["Backend (Rust)"]
+            Commands["Tauri Commands"]
+            RecommendEngine["Recommend Engine"]
+            AutoAssign["Auto-Assign Logic"]
+            DB["SQLite (via rusqlite/sqlx)"]
+        end
+    end
+    ReactFlow --> StateStore
+    Inbox --> StateStore
+    StateStore -->|"invoke"| Commands
+    Commands --> DB
+    Commands --> RecommendEngine
+    Commands --> AutoAssign
+    MenuBar -->|"tray API"| Commands
+```
+
+### 前端
+
+- **状态管理**：Zustand（轻量，适合 Tauri 场景）
+- **图形渲染**：`@xyflow/react` + dagre/elkjs 自动布局
+- **窗口管理**：Tauri 多窗口 -- 主窗口 + 悬浮窗（WebviewWindow, always_on_top, decorations: false）
+- **组件结构**：
+  - `TaskNode` -- 自定义 React Flow 节点（状态着色 + 内联操作按钮）
+  - `InboxPanel` -- 任务收集面板（底部抽屉）
+  - `DetailPanel` -- 任务详情（右侧滑出）
+  - `FloatingWidget` -- 悬浮窗组件（独立 Tauri 窗口渲染）
+  - `ProjectSelector` -- 项目切换
+  - `ToastManager` -- 操作反馈 + Undo
+
+### 后端
+
+- **Tauri Commands**：CRUD + 推荐计算 + 自动分配 + 状态同步
+- **SQLite**：通过 `rusqlite` 或 `sqlx`
+- **推荐引擎**：Rust 实现关键路径分析 + 支线均衡排序
+- **自动分配**：早期基于关键词规则匹配，后续可接 LLM
+- **Tray**：Tauri 2 tray API，菜单项根据任务状态动态更新
+
+### 数据流与跨窗口同步
+
+1. 用户操作 → 前端 invoke → Rust 写入 SQLite → 返回 → Zustand 更新 → 当前窗口 UI 刷新
+2. 任务状态变更 → Rust 重算推荐 → Tauri event emit → 所有窗口（主窗口 + 悬浮窗）监听并同步更新
+3. 菜单栏通过 Rust 端直接读取推荐结果，动态重建 tray menu items
+
+---
+
+## 分阶段实施
+
+### Phase 1: 数据基础 + 基础渲染
+
+目标：从 SQLite 读取真实数据，在泳道 DAG 上渲染
+
+- Rust 数据模型定义（Project, Branch, Task, TaskDependency structs + enums）
+- SQLite 建表迁移（`rusqlite` + 手动 migration 或 `sqlx` + 编译期校验）
+- 基础 CRUD Tauri Commands（create/read/update/delete project, branch, task）
+- 前端 Zustand store + Tauri invoke 通信层
+- React Flow 自定义 `TaskNode` 节点 + dagre 自动泳道布局
+- 基础 UI 骨架：深色主题、左侧 Sidebar（项目列表）、主画布区
+
+### Phase 2: 核心交互 + 多窗口
+
+目标：完整的任务创建→分配→执行→完成闭环 + 三层交互面
+
+- Inbox 底部抽屉 + QuickAddInput
+- 任务分配：Inbox 拖拽到支线 + 支线末尾 + 按钮直接创建
+- 任务状态流转（节点内联按钮：开始/完成/暂停）
+- 依赖关系可视化编辑（在 DAG 上连线创建依赖）
+- 任务 DetailPanel（右侧滑出）
+- Toast + Undo 机制
+- 常驻悬浮窗（Tauri 多窗口：折叠/展开态，完成+切换+添加）
+- macOS 菜单栏指示器（tray icon + 动态下拉菜单）
+
+### Phase 3: 推荐引擎 + 核心循环
+
+目标：产品核心价值 -- "完成→推荐→开始" 自动循环
+
+- 推荐算法实现（关键路径分析 + 支线均衡 + 用户置顶）
+- Ready 任务在 DAG / 悬浮窗 / 菜单栏同步高亮
+- 完成任务后自动推荐下一个（三层同步）
+- 自动分配逻辑（基于关键词匹配推荐支线）
+- 支线归档功能
+
+### Phase 4: 提效增强
+
+目标：进一步降低操作阻力
+
+- 全局快捷键（完成当前任务、快速添加、切换任务）
+- 命令面板（Cmd+K 风格，自然语言输入）
+- 语音输入集成（macOS Speech API 或 Whisper）
+- 外部源同步接口骨架（Rust trait 定义 + manual source 实现，预留 Linear / GitHub 等）
+
+---
+
+## 需同步到项目文档的变更
+
+- [AGENTS.md](AGENTS.md)：新增设计哲学第 3 条（前额叶保护）和第 4 条（细粒度、低阻力）
+- [devlog.md](devlog.md)：记录本次产品设计讨论的关键决策
