@@ -90,4 +90,4 @@
 - **CSS 修复**：补全 `.backlog-pool__assign` 孤立属性；硬编码色迁移到 theme tokens
 - **AddLaneDialog**：Escape 关闭、空名 disabled、类型说明、默认名称
 
-**Commit:** _(pending)_
+**Commit:** `42d5936` (frontend), `28c5b3d` (backend)
