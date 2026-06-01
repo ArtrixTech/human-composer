@@ -27,6 +27,12 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                 app.exit(0);
             } else if id == "show" {
                 show_main(app);
+            } else if id == "quick-add" {
+                let _ = app.emit("floating-focus-input", ());
+                if let Some(window) = app.get_webview_window("floating") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             } else if let Some(task_id) = id.strip_prefix("complete:") {
                 handle_tray_task_action(app, task_id, true);
             } else if let Some(task_id) = id.strip_prefix("activate:") {
@@ -64,17 +70,26 @@ fn handle_tray_task_action(app: &AppHandle, task_id: &str, complete: bool) {
         project_id
     };
 
+    emit_snapshots(app, &project_id);
     let _ = refresh_tray_menu(app);
-    let snapshot = {
+}
+
+fn emit_snapshots(app: &AppHandle, project_id: &str) {
+    let (app_snapshot, today) = {
         let state = app.state::<AppState>();
         let db = match state.db.lock() {
             Ok(db) => db,
             Err(_) => return,
         };
-        db.build_app_snapshot(&project_id).ok()
+        let app_snapshot = db.build_app_snapshot(project_id).ok();
+        let today = db.build_today_snapshot().ok();
+        (app_snapshot, today)
     };
-    if let Some(snapshot) = snapshot {
+    if let Some(snapshot) = app_snapshot {
         let _ = app.emit("graph-updated", snapshot);
+    }
+    if let Some(today) = today {
+        let _ = app.emit("today-updated", today);
     }
 }
 
@@ -82,17 +97,7 @@ pub fn refresh_tray_menu(app: &AppHandle) -> Result<(), String> {
     let snapshot = {
         let state = app.state::<AppState>();
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        let project_id = match db.get_active_project_id().map_err(|e| e.to_string())? {
-            Some(id) => id,
-            None => db
-                .list_projects()
-                .map_err(|e| e.to_string())?
-                .first()
-                .map(|p| p.id.clone())
-                .ok_or_else(|| "No project".to_string())?,
-        };
-        db.build_app_snapshot(&project_id)
-            .map_err(|e| e.to_string())?
+        db.build_today_snapshot().map_err(|e| e.to_string())?
     };
 
     let Some(tray) = app.tray_by_id("main-tray") else {
@@ -159,6 +164,12 @@ pub fn refresh_tray_menu(app: &AppHandle) -> Result<(), String> {
         separators.push(PredefinedMenuItem::separator(app).map_err(|e| e.to_string())?);
         structure.push(MenuEntry::Sep(separators.len() - 1));
     }
+
+    owned_items.push(
+        MenuItem::with_id(app, "quick-add", "快速添加任务…", true, None::<&str>)
+            .map_err(|e| e.to_string())?,
+    );
+    structure.push(MenuEntry::Item(owned_items.len() - 1));
 
     owned_items.push(
         MenuItem::with_id(app, "show", "打开 Human Composer", true, None::<&str>)

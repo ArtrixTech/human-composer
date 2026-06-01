@@ -6,9 +6,10 @@ use uuid::Uuid;
 
 use crate::models::{
     AppSnapshot, Branch, Project, ProjectGraph, ProjectSummary, RecommendedTask, Task,
-    TaskDependency, TaskStatus, TaskWithBranch,
+    TaskDependency, TaskStatus, TaskWithBranch, TodaySnapshot,
 };
 use crate::recommend::compute_recommendations;
+use crate::today::{self, DEFAULT_DAY_END};
 
 pub struct Database {
     conn: Connection,
@@ -78,8 +79,30 @@ impl Database {
 
         self.ensure_column("tasks", "pinned", "INTEGER NOT NULL DEFAULT 0")?;
         self.ensure_column("tasks", "project_id", "TEXT")?;
+        self.ensure_column("tasks", "estimated_minutes", "INTEGER DEFAULT 30")?;
+
+        if self.get_setting("day_end_time")?.is_none() {
+            self.set_setting("day_end_time", DEFAULT_DAY_END)?;
+        }
 
         Ok(())
+    }
+
+    fn map_task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
+        let status_str: String = row.get(5)?;
+        Ok(Task {
+            id: row.get(0)?,
+            project_id: row.get(1)?,
+            branch_id: row.get(2)?,
+            title: row.get(3)?,
+            description: row.get(4)?,
+            status: TaskStatus::from_str(&status_str).unwrap_or(TaskStatus::Pending),
+            sort_order: row.get(6)?,
+            pinned: row.get::<_, i32>(7)? != 0,
+            estimated_minutes: row.get(8)?,
+            created_at: row.get::<_, String>(9)?.parse().unwrap_or_else(|_| Utc::now()),
+            completed_at: row.get::<_, Option<String>>(10)?.and_then(|s| s.parse().ok()),
+        })
     }
 
     fn ensure_column(&self, table: &str, column: &str, definition: &str) -> rusqlite::Result<()> {
@@ -164,9 +187,11 @@ impl Database {
         let mut stmt = self.conn.prepare(
             "SELECT p.id, p.name,
                     COALESCE(SUM(CASE WHEN t.status = 'active' THEN 1 ELSE 0 END), 0) AS active_count,
-                    COALESCE(SUM(CASE WHEN t.status = 'ready' THEN 1 ELSE 0 END), 0) AS ready_count
+                    COALESCE(SUM(CASE WHEN t.status = 'ready' THEN 1 ELSE 0 END), 0) AS ready_count,
+                    COALESCE(SUM(CASE WHEN t.status = 'done' THEN 1 ELSE 0 END), 0) AS done_count,
+                    COALESCE(SUM(CASE WHEN t.status != 'inbox' THEN 1 ELSE 0 END), 0) AS task_count
              FROM projects p
-             LEFT JOIN branches b ON b.project_id = p.id
+             LEFT JOIN branches b ON b.project_id = p.id AND b.archived = 0
              LEFT JOIN tasks t ON t.branch_id = b.id
              GROUP BY p.id
              ORDER BY p.created_at ASC",
@@ -178,9 +203,29 @@ impl Database {
                 name: row.get(1)?,
                 active_count: row.get(2)?,
                 ready_count: row.get(3)?,
+                done_count: row.get(4)?,
+                task_count: row.get(5)?,
             })
         })?;
 
+        rows.collect()
+    }
+
+    pub fn list_archived_branches(&self, project_id: &str) -> rusqlite::Result<Vec<Branch>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, name, sort_order, archived
+             FROM branches WHERE project_id = ?1 AND archived = 1
+             ORDER BY sort_order ASC",
+        )?;
+        let rows = stmt.query_map(params![project_id], |row| {
+            Ok(Branch {
+                id: row.get(0)?,
+                project_id: row.get(1)?,
+                name: row.get(2)?,
+                sort_order: row.get(3)?,
+                archived: row.get::<_, i32>(4)? != 0,
+            })
+        })?;
         rows.collect()
     }
 
@@ -308,29 +353,14 @@ impl Database {
 
     fn get_tasks_for_project(&self, project_id: &str) -> rusqlite::Result<Vec<Task>> {
         let mut stmt = self.conn.prepare(
-            "SELECT t.id, t.branch_id, t.title, t.description, t.status, t.sort_order, t.pinned, t.created_at, t.completed_at
+            "SELECT t.id, t.project_id, t.branch_id, t.title, t.description, t.status,
+                    t.sort_order, t.pinned, t.estimated_minutes, t.created_at, t.completed_at
              FROM tasks t
              WHERE t.project_id = ?1
              ORDER BY t.sort_order ASC, t.created_at ASC",
         )?;
 
-        let rows = stmt.query_map(params![project_id], |row| {
-            let status_str: String = row.get(4)?;
-            Ok(Task {
-                id: row.get(0)?,
-                branch_id: row.get(1)?,
-                title: row.get(2)?,
-                description: row.get(3)?,
-                status: TaskStatus::from_str(&status_str).unwrap_or(TaskStatus::Pending),
-                sort_order: row.get(5)?,
-                pinned: row.get::<_, i32>(6)? != 0,
-                created_at: row.get::<_, String>(7)?.parse().unwrap_or_else(|_| Utc::now()),
-                completed_at: row
-                    .get::<_, Option<String>>(8)?
-                    .and_then(|s| s.parse().ok()),
-            })
-        })?;
-
+        let rows = stmt.query_map(params![project_id], Self::map_task_row)?;
         rows.collect()
     }
 
@@ -407,25 +437,11 @@ impl Database {
 
     pub fn get_task(&self, task_id: &str) -> rusqlite::Result<Task> {
         self.conn.query_row(
-            "SELECT id, branch_id, title, description, status, sort_order, pinned, created_at, completed_at
+            "SELECT id, project_id, branch_id, title, description, status, sort_order, pinned,
+                    estimated_minutes, created_at, completed_at
              FROM tasks WHERE id = ?1",
             params![task_id],
-            |row| {
-                let status_str: String = row.get(4)?;
-                Ok(Task {
-                    id: row.get(0)?,
-                    branch_id: row.get(1)?,
-                    title: row.get(2)?,
-                    description: row.get(3)?,
-                    status: TaskStatus::from_str(&status_str).unwrap_or(TaskStatus::Pending),
-                    sort_order: row.get(5)?,
-                    pinned: row.get::<_, i32>(6)? != 0,
-                    created_at: row.get::<_, String>(7)?.parse().unwrap_or_else(|_| Utc::now()),
-                    completed_at: row
-                        .get::<_, Option<String>>(8)?
-                        .and_then(|s| s.parse().ok()),
-                })
-            },
+            Self::map_task_row,
         )
     }
 
@@ -477,12 +493,10 @@ impl Database {
         Ok(())
     }
 
-    pub fn activate_task(&self, task_id: &str, project_id: &str) -> rusqlite::Result<Task> {
+    pub fn activate_task(&self, task_id: &str, _project_id: &str) -> rusqlite::Result<Task> {
         self.conn.execute(
-            "UPDATE tasks SET status = 'ready'
-             WHERE status = 'active'
-             AND project_id = ?1",
-            params![project_id],
+            "UPDATE tasks SET status = 'ready' WHERE status = 'active'",
+            [],
         )?;
         self.set_task_status(task_id, TaskStatus::Active)
     }
@@ -538,10 +552,9 @@ impl Database {
         let _previous = self.get_task(task_id)?;
         self.set_task_status(task_id, TaskStatus::Done)?;
         self.recalculate_project_statuses(project_id)?;
-        let graph = self.get_project_graph(project_id)?;
-        let recommendations = compute_recommendations(&graph.branches, &graph.tasks, &graph.dependencies);
+        let today = self.build_today_snapshot()?;
         let completed = self.get_task(task_id)?;
-        Ok((completed, recommendations))
+        Ok((completed, today.recommendations))
     }
 
     pub fn build_app_snapshot(&self, project_id: &str) -> rusqlite::Result<AppSnapshot> {
@@ -552,7 +565,12 @@ impl Database {
             .map(|b| (b.id.clone(), b.name.clone()))
             .collect();
 
-        let recommendations = compute_recommendations(&graph.branches, &graph.tasks, &graph.dependencies);
+        let mut recommendations =
+            compute_recommendations(&graph.branches, &graph.tasks, &graph.dependencies);
+        for rec in &mut recommendations {
+            rec.project_id = Some(graph.project.id.clone());
+            rec.project_name = Some(graph.project.name.clone());
+        }
 
         let wrap = |task: &Task| TaskWithBranch {
             task: task.clone(),
@@ -605,5 +623,153 @@ impl Database {
 
     pub fn set_active_project_id(&self, project_id: &str) -> rusqlite::Result<()> {
         self.set_setting("active_project_id", project_id)
+    }
+
+    pub fn get_all_tasks(&self) -> rusqlite::Result<Vec<Task>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, branch_id, title, description, status, sort_order, pinned,
+                    estimated_minutes, created_at, completed_at
+             FROM tasks ORDER BY sort_order ASC, created_at ASC",
+        )?;
+        let rows = stmt.query_map([], Self::map_task_row)?;
+        rows.collect()
+    }
+
+    pub fn get_all_branches(&self) -> rusqlite::Result<Vec<Branch>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, name, sort_order, archived FROM branches ORDER BY sort_order ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(Branch {
+                id: row.get(0)?,
+                project_id: row.get(1)?,
+                name: row.get(2)?,
+                sort_order: row.get(3)?,
+                archived: row.get::<_, i32>(4)? != 0,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn get_all_dependencies(&self) -> rusqlite::Result<Vec<TaskDependency>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT task_id, depends_on_task_id FROM task_dependencies")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(TaskDependency {
+                task_id: row.get(0)?,
+                depends_on_task_id: row.get(1)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn build_today_snapshot(&self) -> rusqlite::Result<TodaySnapshot> {
+        let projects_raw = self.list_projects()?;
+        let projects: Vec<(String, String)> = projects_raw
+            .into_iter()
+            .map(|p| (p.id, p.name))
+            .collect();
+        let branches = self.get_all_branches()?;
+        let tasks = self.get_all_tasks()?;
+        let dependencies = self.get_all_dependencies()?;
+        let day_end = self
+            .get_setting("day_end_time")?
+            .unwrap_or_else(|| DEFAULT_DAY_END.to_string());
+        Ok(today::build_today_snapshot(
+            &projects,
+            &branches,
+            &tasks,
+            &dependencies,
+            &day_end,
+        ))
+    }
+
+    pub fn set_task_estimated_minutes(
+        &self,
+        task_id: &str,
+        minutes: i32,
+    ) -> rusqlite::Result<Task> {
+        self.conn.execute(
+            "UPDATE tasks SET estimated_minutes = ?1 WHERE id = ?2",
+            params![minutes, task_id],
+        )?;
+        self.get_task(task_id)
+    }
+
+    pub fn rename_branch(&self, branch_id: &str, name: &str) -> rusqlite::Result<Branch> {
+        self.conn.execute(
+            "UPDATE branches SET name = ?1 WHERE id = ?2",
+            params![name, branch_id],
+        )?;
+        self.get_branch(branch_id)
+    }
+
+    pub fn unarchive_branch(&self, branch_id: &str) -> rusqlite::Result<Branch> {
+        self.conn.execute(
+            "UPDATE branches SET archived = 0 WHERE id = ?1",
+            params![branch_id],
+        )?;
+        self.get_branch(branch_id)
+    }
+
+    pub fn get_branch(&self, branch_id: &str) -> rusqlite::Result<Branch> {
+        self.conn.query_row(
+            "SELECT id, project_id, name, sort_order, archived FROM branches WHERE id = ?1",
+            params![branch_id],
+            |row| {
+                Ok(Branch {
+                    id: row.get(0)?,
+                    project_id: row.get(1)?,
+                    name: row.get(2)?,
+                    sort_order: row.get(3)?,
+                    archived: row.get::<_, i32>(4)? != 0,
+                })
+            },
+        )
+    }
+
+    pub fn delete_project(&self, project_id: &str) -> rusqlite::Result<()> {
+        self.conn
+            .execute("DELETE FROM projects WHERE id = ?1", params![project_id])?;
+        Ok(())
+    }
+
+    pub fn reorder_task(&self, task_id: &str, direction: &str) -> rusqlite::Result<Task> {
+        let task = self.get_task(task_id)?;
+        let branch_id = task
+            .branch_id
+            .as_deref()
+            .ok_or(rusqlite::Error::InvalidQuery)?;
+        let mut siblings: Vec<Task> = self
+            .get_tasks_for_project(&task.project_id)?
+            .into_iter()
+            .filter(|t| t.branch_id.as_deref() == Some(branch_id))
+            .collect();
+        siblings.sort_by_key(|t| t.sort_order);
+        let idx = siblings
+            .iter()
+            .position(|t| t.id == task_id)
+            .ok_or(rusqlite::Error::InvalidQuery)?;
+        let swap_idx = match direction {
+            "up" if idx > 0 => idx - 1,
+            "down" if idx + 1 < siblings.len() => idx + 1,
+            _ => return Ok(task),
+        };
+        let a = siblings[idx].sort_order;
+        let b = siblings[swap_idx].sort_order;
+        self.conn.execute(
+            "UPDATE tasks SET sort_order = ?1 WHERE id = ?2",
+            params![b, siblings[idx].id],
+        )?;
+        self.conn.execute(
+            "UPDATE tasks SET sort_order = ?1 WHERE id = ?2",
+            params![a, siblings[swap_idx].id],
+        )?;
+        self.get_task(task_id)
+    }
+
+    pub fn list_project_tasks_for_dependency(&self, project_id: &str) -> rusqlite::Result<Vec<Task>> {
+        self.get_tasks_for_project(project_id)
     }
 }

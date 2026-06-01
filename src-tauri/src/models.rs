@@ -58,12 +58,14 @@ pub struct Branch {
 #[serde(rename_all = "camelCase")]
 pub struct Task {
     pub id: String,
+    pub project_id: String,
     pub branch_id: Option<String>,
     pub title: String,
     pub description: String,
     pub status: TaskStatus,
     pub sort_order: i32,
     pub pinned: bool,
+    pub estimated_minutes: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
 }
@@ -91,6 +93,8 @@ pub struct ProjectSummary {
     pub name: String,
     pub active_count: i32,
     pub ready_count: i32,
+    pub done_count: i32,
+    pub task_count: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,6 +109,8 @@ pub struct TaskWithBranch {
 pub struct RecommendedTask {
     pub task: Task,
     pub branch_name: Option<String>,
+    pub project_id: Option<String>,
+    pub project_name: Option<String>,
     pub score: f64,
     pub blocked_count: i32,
 }
@@ -140,4 +146,46 @@ pub struct BranchSuggestion {
 pub struct CreateTaskResult {
     pub task: Task,
     pub branch_suggestion: Option<BranchSuggestion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TodayTaskContext {
+    pub task: Task,
+    pub project_id: String,
+    pub project_name: String,
+    pub branch_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TodayScheduleItem {
+    pub task: Task,
+    pub project_id: String,
+    pub project_name: String,
+    pub branch_name: Option<String>,
+    pub estimated_minutes: i32,
+    pub scheduled_start: String,
+    pub scheduled_end: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeBudget {
+    pub remaining_minutes: i32,
+    pub available_minutes: i32,
+    pub estimated_finish_time: Option<String>,
+    pub completed_count: i32,
+    pub remaining_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TodaySnapshot {
+    pub active_task: Option<TodayTaskContext>,
+    pub schedule: Vec<TodayScheduleItem>,
+    pub completed_today: Vec<TodayTaskContext>,
+    pub recommendations: Vec<RecommendedTask>,
+    pub time_budget: TimeBudget,
+    pub day_end_time: String,
 }

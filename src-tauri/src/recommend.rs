@@ -49,6 +49,8 @@ pub fn compute_recommendations(
             RecommendedTask {
                 task: task.clone(),
                 branch_name,
+                project_id: None,
+                project_name: None,
                 score,
                 blocked_count,
             }

@@ -5,8 +5,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::auto_assign::suggest_branch;
 use crate::db::Database;
 use crate::models::{
-    AppSnapshot, BranchSuggestion, CompleteTaskResult, CreateTaskResult, ProjectGraph,
-    ProjectSummary, Task, TaskStatus,
+    AppSnapshot, Branch, BranchSuggestion, CompleteTaskResult, CreateTaskResult, ProjectGraph,
+    ProjectSummary, Task, TaskStatus, TodaySnapshot,
 };
 use crate::undo::{UndoAction, UndoStack};
 
@@ -32,11 +32,144 @@ fn active_project_id(db: &Database) -> Result<String, String> {
 /// Build snapshot and emit **after** releasing the DB lock to avoid deadlocks
 /// with tray refresh / other commands listening on `graph-updated`.
 fn emit_snapshot(app: &AppHandle, state: &State<'_, AppState>, project_id: &str) -> Result<(), String> {
-    let snapshot = {
+    let (snapshot, today) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.build_app_snapshot(project_id).map_err(|e| e.to_string())?
+        let snapshot = db.build_app_snapshot(project_id).map_err(|e| e.to_string())?;
+        let today = db.build_today_snapshot().map_err(|e| e.to_string())?;
+        (snapshot, today)
     };
     let _ = app.emit("graph-updated", &snapshot);
+    let _ = app.emit("today-updated", &today);
+    Ok(())
+}
+
+fn emit_today_only(app: &AppHandle, state: &State<'_, AppState>) -> Result<(), String> {
+    let today = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.build_today_snapshot().map_err(|e| e.to_string())?
+    };
+    let _ = app.emit("today-updated", &today);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_today_snapshot(state: State<'_, AppState>) -> Result<TodaySnapshot, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .build_today_snapshot()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_task_estimated_minutes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+    minutes: i32,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.set_task_estimated_minutes(&task_id, minutes)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn rename_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_id: String,
+    name: String,
+) -> Result<Branch, String> {
+    let branch = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.rename_branch(&branch_id, &name).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(branch)
+}
+
+#[tauri::command]
+pub fn list_archived_branches(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<Branch>, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .list_archived_branches(&project_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn unarchive_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_id: String,
+) -> Result<Branch, String> {
+    let branch = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.unarchive_branch(&branch_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(branch)
+}
+
+#[tauri::command]
+pub fn delete_project(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.delete_project(&project_id).map_err(|e| e.to_string())?;
+    }
+    let fallback = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.list_projects().ok().and_then(|p| p.first().map(|x| x.id.clone()))
+    };
+    if let Some(pid) = fallback {
+        emit_snapshot(&app, &state, &pid)?;
+    } else {
+        emit_today_only(&app, &state)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn reorder_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+    direction: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_task(&task_id, &direction)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn focus_floating_for_quick_add(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("floating") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        let _ = window.set_size(tauri::LogicalSize::new(320.0, 400.0));
+        let _ = app.emit("floating-focus-input", ());
+    }
     Ok(())
 }
 

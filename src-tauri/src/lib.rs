@@ -4,6 +4,7 @@ mod db;
 mod models;
 mod recommend;
 mod sources;
+mod today;
 mod tray;
 mod undo;
 
@@ -67,9 +68,36 @@ pub fn run() {
                 }
             }
 
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::window::{Effect, EffectsBuilder};
+                for label in ["main", "floating"] {
+                    if let Some(window) = app.get_webview_window(label) {
+                        let _ = window.set_effects(
+                            EffectsBuilder::new()
+                                .effects(vec![Effect::ContentBackground])
+                                .radius(12.0)
+                                .build(),
+                        );
+                    }
+                }
+            }
+
+            if let Some(floating) = app.get_webview_window("floating") {
+                let _ = floating.set_maximizable(false);
+                let _ = floating.set_resizable(false);
+            }
+
             let handle = app.handle().clone();
             app.handle().listen("graph-updated", move |_event| {
                 let handle = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = tray::refresh_tray_menu(&handle);
+                });
+            });
+            let handle2 = app.handle().clone();
+            app.handle().listen("today-updated", move |_event| {
+                let handle = handle2.clone();
                 tauri::async_runtime::spawn(async move {
                     let _ = tray::refresh_tray_menu(&handle);
                 });
@@ -83,6 +111,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_today_snapshot,
+            commands::set_task_estimated_minutes,
+            commands::rename_branch,
+            commands::list_archived_branches,
+            commands::unarchive_branch,
+            commands::delete_project,
+            commands::reorder_task,
+            commands::focus_floating_for_quick_add,
             commands::list_projects,
             commands::create_project,
             commands::set_active_project,
