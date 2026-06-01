@@ -18,12 +18,14 @@ export interface Branch {
 
 export interface Task {
   id: string;
+  projectId: string;
   branchId: string | null;
   title: string;
   description: string;
   status: TaskStatus;
   sortOrder: number;
   pinned: boolean;
+  estimatedMinutes: number | null;
   createdAt: string;
   completedAt: string | null;
 }
@@ -45,6 +47,8 @@ export interface ProjectSummary {
   name: string;
   activeCount: number;
   readyCount: number;
+  doneCount: number;
+  taskCount: number;
 }
 
 export interface TaskWithBranch {
@@ -55,6 +59,8 @@ export interface TaskWithBranch {
 export interface RecommendedTask {
   task: Task;
   branchName: string | null;
+  projectId: string | null;
+  projectName: string | null;
   score: number;
   blockedCount: number;
 }
@@ -66,6 +72,40 @@ export interface AppSnapshot {
   readyTasks: TaskWithBranch[];
   recommendations: RecommendedTask[];
   inboxCount: number;
+}
+
+export interface TodayTaskContext {
+  task: Task;
+  projectId: string;
+  projectName: string;
+  branchName: string | null;
+}
+
+export interface TodayScheduleItem {
+  task: Task;
+  projectId: string;
+  projectName: string;
+  branchName: string | null;
+  estimatedMinutes: number;
+  scheduledStart: string;
+  scheduledEnd: string;
+}
+
+export interface TimeBudget {
+  remainingMinutes: number;
+  availableMinutes: number;
+  estimatedFinishTime: string | null;
+  completedCount: number;
+  remainingCount: number;
+}
+
+export interface TodaySnapshot {
+  activeTask: TodayTaskContext | null;
+  schedule: TodayScheduleItem[];
+  completedToday: TodayTaskContext[];
+  recommendations: RecommendedTask[];
+  timeBudget: TimeBudget;
+  dayEndTime: string;
 }
 
 export interface CompleteTaskResult {
@@ -83,3 +123,5 @@ export interface CreateTaskResult {
   task: Task;
   branchSuggestion: BranchSuggestion | null;
 }
+
+export type MainView = "today" | "project";

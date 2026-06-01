@@ -6,6 +6,7 @@ import { DAGCanvas } from "../dag/DAGCanvas";
 import { InboxPanel } from "../inbox/InboxPanel";
 import { RecommendPrompt } from "../recommend/RecommendPrompt";
 import { ToastContainer } from "../toast/ToastContainer";
+import { TodayView } from "../today/TodayView";
 import { ProjectHeader } from "./ProjectHeader";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
@@ -17,6 +18,7 @@ export function AppShell() {
   const initialize = useAppStore((s) => s.initialize);
   const error = useAppStore((s) => s.error);
   const loading = useAppStore((s) => s.loading);
+  const currentView = useAppStore((s) => s.currentView);
   const graph = useAppStore((s) => s.graph);
 
   useGraphSync();
@@ -32,8 +34,10 @@ export function AppShell() {
         <Sidebar />
         <main className="app-shell__main">
           {error && <div className="app-shell__error">{error}</div>}
-          {loading && !graph ? (
+          {loading && !graph && currentView === "project" ? (
             <div className="app-shell__loading">加载中…</div>
+          ) : currentView === "today" ? (
+            <TodayView />
           ) : (
             <>
               <ProjectHeader />
