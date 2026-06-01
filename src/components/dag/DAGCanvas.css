@@ -1,0 +1,33 @@
+.dag-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-base);
+}
+
+.dag-canvas__lanes {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.dag-canvas .react-flow {
+  z-index: 1;
+}
+
+.dag-canvas .react-flow__pane {
+  cursor: grab;
+}
+
+.dag-canvas .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.dag-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+}

@@ -1,0 +1,93 @@
+.inbox-panel {
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.inbox-panel__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.inbox-panel__toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.inbox-panel__count {
+  margin-left: auto;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-muted);
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.inbox-panel__body {
+  padding: 0 16px 12px;
+}
+
+.inbox-panel__input-row input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  outline: none;
+}
+
+.inbox-panel__input-row input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+.inbox-panel__list {
+  margin-top: 8px;
+  max-height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inbox-panel__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  font-size: 13px;
+}
+
+.inbox-panel__assign {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.inbox-panel__assign button {
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.inbox-panel__assign button:hover {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.inbox-panel__empty {
+  margin: 8px 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
