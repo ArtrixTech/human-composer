@@ -44,6 +44,36 @@
   color: var(--status-active) !important;
 }
 
+.command-palette__results {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.command-palette__result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.command-palette__result:hover,
+.command-palette__result--selected {
+  background: var(--bg-hover);
+}
+
+.command-palette__result-group {
+  flex-shrink: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  min-width: 56px;
+}
+
 .command-palette__hints {
   display: flex;
   flex-wrap: wrap;

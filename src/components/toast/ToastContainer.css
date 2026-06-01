@@ -11,16 +11,37 @@
 
 .toast {
   pointer-events: auto;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 10px 14px 12px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-default);
   background: var(--bg-elevated);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   font-size: 13px;
   animation: toast-in 0.2s ease;
+  overflow: hidden;
+}
+
+.toast--exiting {
+  animation: toast-out 0.22s ease forwards;
+}
+
+.toast__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--border-subtle);
+}
+
+.toast__progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.05s linear;
 }
 
 .toast__actions {
@@ -39,6 +60,17 @@
 
 .toast__actions button:hover {
   background: var(--accent-muted);
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 
 @keyframes toast-in {
