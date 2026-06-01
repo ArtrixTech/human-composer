@@ -42,4 +42,4 @@
 - AppShell / FloatingWidget 应用 12px 圆角与边框
 - `AGENTS.md` 补充「按具体改进项拆分提交」规范
 
-**Commit:** _(pending — included in docs commit below)_
+**Commit:** `5ca1bc6` (UI chrome), `ec2d0c3` (window config), `6594273` (AGENTS 规范)
