@@ -59,3 +59,9 @@
 - **体验打磨**：Command Palette 跨项目搜索与键盘导航、Toast 退出动画与进度条、Escape 关闭面板、TaskNode 信息密度
 
 **Commit:** `7497a14` (prior), `2606b71` … `48c2161`
+
+## 2026-06-01 — 添加交互优化实施计划文档
+
+- 添加 `.cursor/plans/交互优化与目标对齐_1f222d06.plan.md`：Today View 锚点的 10 步实施计划（文档对齐 → 数据层 → Today View → 悬浮窗/Tray → 支线管理 → DetailPanel → 推荐非模态 → Inbox/删除 → DAG 打磨 → 体验打磨）
+
+**Commit:** _(this commit)_
