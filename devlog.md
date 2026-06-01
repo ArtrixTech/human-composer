@@ -65,3 +65,11 @@
 - 添加 `.cursor/plans/交互优化与目标对齐_1f222d06.plan.md`：Today View 锚点的 10 步实施计划（文档对齐 → 数据层 → Today View → 悬浮窗/Tray → 支线管理 → DetailPanel → 推荐非模态 → Inbox/删除 → DAG 打磨 → 体验打磨）
 
 **Commit:** `1fc7c71`
+
+## 2026-06-01 — DayRunway 今日任务核心界面重构方案
+
+- 添加 `.cursor/plans/dayrunway_redesign_9ec238e3.plan.md`：以注意力泳道（Focus/Watch）替代单线程 Today View 列表
+- 核心概念：领取→执行→完成循环、外部任务生命周期（Delegated/NeedsReview）、泳道动态管理
+- 泳道填充策略：继承昨日泳道结构、新 Ready 任务追加到活跃泳道、用户手动拖拽调整
+- 数据模型：`day_lanes` / `day_lane_tasks` 表、Task 外部任务字段、每泳道单 Active 约束
+- 前端：`src/components/runway/` 自定义泳道组件（非 React Flow），六阶段实施路径
