@@ -10,11 +10,32 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
+        "label": "main",
         "title": "Human Composer",
-        "width": 1200,
-        "height": 800
+        "width": 1280,
+        "height": 840,
+        "minWidth": 960,
+        "minHeight": 600,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true
+      },
+      {
+        "label": "floating",
+        "title": "Human Composer",
+        "url": "floating.html",
+        "width": 220,
+        "height": 52,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": true,
+        "visible": true,
+        "transparent": true,
+        "shadow": true
       }
     ],
     "security": {

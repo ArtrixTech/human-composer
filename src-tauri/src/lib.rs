@@ -1,14 +1,111 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+mod auto_assign;
+mod commands;
+mod db;
+mod models;
+mod recommend;
+mod sources;
+mod tray;
+mod undo;
+
+use std::sync::Mutex;
+
+use commands::AppState;
+use db::Database;
+use tauri::{Emitter, Listener, Manager};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let complete_shortcut =
+        Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyD);
+    let quick_add_shortcut =
+        Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyN);
+    let palette_shortcut = Shortcut::new(Some(Modifiers::SUPER), Code::KeyK);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler({
+                    let complete = complete_shortcut.clone();
+                    let quick_add = quick_add_shortcut.clone();
+                    let palette = palette_shortcut.clone();
+                    move |app, shortcut, event| {
+                        if event.state != ShortcutState::Pressed {
+                            return;
+                        }
+                        if shortcut == &complete {
+                            let _ = app.emit("shortcut-complete-task", ());
+                        } else if shortcut == &quick_add {
+                            let _ = app.emit("shortcut-quick-add", ());
+                        } else if shortcut == &palette {
+                            let _ = app.emit("shortcut-command-palette", ());
+                        }
+                    }
+                })
+                .build(),
+        )
+        .setup(move |app| {
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to resolve app data dir");
+            let db_path = data_dir.join("human-composer.db");
+            let database = Database::open(&db_path).expect("failed to open database");
+
+            app.manage(AppState {
+                db: Mutex::new(database),
+                undo: undo::UndoStack::new(),
+            });
+
+            tray::setup_tray(app.handle())?;
+            let _ = tray::refresh_tray_menu(app.handle());
+
+            for label in ["main", "floating"] {
+                if let Some(window) = app.get_webview_window(label) {
+                    let _ = window.set_shadow(true);
+                }
+            }
+
+            let handle = app.handle().clone();
+            app.handle().listen("graph-updated", move |_event| {
+                let handle = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = tray::refresh_tray_menu(&handle);
+                });
+            });
+
+            let gs = app.global_shortcut();
+            gs.register(complete_shortcut)?;
+            gs.register(quick_add_shortcut)?;
+            gs.register(palette_shortcut)?;
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::list_projects,
+            commands::create_project,
+            commands::set_active_project,
+            commands::get_project_graph,
+            commands::get_app_snapshot,
+            commands::create_branch,
+            commands::create_task,
+            commands::assign_task_to_branch,
+            commands::add_dependency,
+            commands::remove_dependency,
+            commands::update_task,
+            commands::delete_task,
+            commands::set_task_status,
+            commands::activate_task,
+            commands::complete_task,
+            commands::pin_task,
+            commands::archive_branch,
+            commands::suggest_branch_for_task,
+            commands::undo_last_action,
+            commands::list_project_sources,
+            commands::show_main_window,
+            commands::toggle_floating_expanded,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
