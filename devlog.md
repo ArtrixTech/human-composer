@@ -58,4 +58,4 @@
 - **DAG 打磨**：隐藏已完成、空状态引导、泳道/项目进度条
 - **体验打磨**：Command Palette 跨项目搜索与键盘导航、Toast 退出动画与进度条、Escape 关闭面板、TaskNode 信息密度
 
-**Commit:** `7497a14` (prior), _(pending split commits)_
+**Commit:** `7497a14` (prior), `2606b71` … `48c2161`
