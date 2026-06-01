@@ -54,6 +54,76 @@ pub struct Branch {
     pub archived: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskType {
+    Normal,
+    External,
+}
+
+impl TaskType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::External => "external",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "external" => Self::External,
+            _ => Self::Normal,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ExternalStatus {
+    Delegated,
+    NeedsReview,
+}
+
+impl ExternalStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Delegated => "delegated",
+            Self::NeedsReview => "needs_review",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "delegated" => Some(Self::Delegated),
+            "needs_review" => Some(Self::NeedsReview),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DayLaneType {
+    Focus,
+    Watch,
+}
+
+impl DayLaneType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Focus => "focus",
+            Self::Watch => "watch",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "watch" => Self::Watch,
+            _ => Self::Focus,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
@@ -66,8 +136,33 @@ pub struct Task {
     pub sort_order: i32,
     pub pinned: bool,
     pub estimated_minutes: Option<i32>,
+    pub task_type: TaskType,
+    pub external_status: Option<ExternalStatus>,
+    pub external_started_at: Option<DateTime<Utc>>,
+    pub external_completed_at: Option<DateTime<Utc>>,
+    pub external_note: Option<String>,
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayLane {
+    pub id: String,
+    pub date: String,
+    pub name: String,
+    pub lane_type: DayLaneType,
+    pub sort_order: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayLaneTask {
+    pub id: String,
+    pub lane_id: String,
+    pub task_id: String,
+    pub sort_order: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,4 +283,30 @@ pub struct TodaySnapshot {
     pub recommendations: Vec<RecommendedTask>,
     pub time_budget: TimeBudget,
     pub day_end_time: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayLaneSnapshot {
+    pub lane: DayLane,
+    pub tasks: Vec<TodayTaskContext>,
+    pub active_task_id: Option<String>,
+    pub completed_count: i32,
+    pub total_count: i32,
+    pub estimated_finish_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayRunwaySnapshot {
+    pub date: String,
+    pub lanes: Vec<DayLaneSnapshot>,
+    pub backlog: Vec<TodayTaskContext>,
+    pub completed_today: Vec<TodayTaskContext>,
+    pub recommendations: Vec<RecommendedTask>,
+    pub dependencies: Vec<TaskDependency>,
+    pub time_budget: TimeBudget,
+    pub day_end_time: String,
+    pub carry_over_count: i32,
+    pub focus_lane_count: i32,
 }

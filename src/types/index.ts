@@ -1,4 +1,7 @@
 export type TaskStatus = "inbox" | "pending" | "ready" | "active" | "done";
+export type TaskType = "normal" | "external";
+export type ExternalStatus = "delegated" | "needs_review" | null;
+export type DayLaneType = "focus" | "watch";
 
 export interface Project {
   id: string;
@@ -26,6 +29,11 @@ export interface Task {
   sortOrder: number;
   pinned: boolean;
   estimatedMinutes: number | null;
+  taskType: TaskType;
+  externalStatus: ExternalStatus;
+  externalStartedAt: string | null;
+  externalCompletedAt: string | null;
+  externalNote: string | null;
   createdAt: string;
   completedAt: string | null;
 }
@@ -106,6 +114,37 @@ export interface TodaySnapshot {
   recommendations: RecommendedTask[];
   timeBudget: TimeBudget;
   dayEndTime: string;
+}
+
+export interface DayLane {
+  id: string;
+  date: string;
+  name: string;
+  laneType: DayLaneType;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface DayLaneSnapshot {
+  lane: DayLane;
+  tasks: TodayTaskContext[];
+  activeTaskId: string | null;
+  completedCount: number;
+  totalCount: number;
+  estimatedFinishTime: string | null;
+}
+
+export interface DayRunwaySnapshot {
+  date: string;
+  lanes: DayLaneSnapshot[];
+  backlog: TodayTaskContext[];
+  completedToday: TodayTaskContext[];
+  recommendations: RecommendedTask[];
+  dependencies: TaskDependency[];
+  timeBudget: TimeBudget;
+  dayEndTime: string;
+  carryOverCount: number;
+  focusLaneCount: number;
 }
 
 export interface CompleteTaskResult {
