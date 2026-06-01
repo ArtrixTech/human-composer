@@ -18,9 +18,12 @@ export function buildSwimLaneLayout(
   branches: Branch[],
   tasks: Task[],
   dependencies: TaskDependency[],
+  hideDone = false,
 ): LayoutResult {
   const branchTasks = branches.map((branch) =>
-    tasks.filter((t) => t.branchId === branch.id && t.status !== "inbox"),
+    tasks.filter(
+      (t) => t.branchId === branch.id && t.status !== "inbox" && (!hideDone || t.status !== "done"),
+    ),
   );
 
   const nodes: Node[] = [];
@@ -33,7 +36,15 @@ export function buildSwimLaneLayout(
       id: `lane-${branch.id}`,
       type: "laneLabel",
       position: { x: 0, y: laneY + 28 },
-      data: { label: branch.name },
+      data: {
+        label: branch.name,
+        branchId: branch.id,
+        progress: (() => {
+          const all = tasks.filter((t) => t.branchId === branch.id && t.status !== "inbox");
+          const done = all.filter((t) => t.status === "done").length;
+          return all.length > 0 ? `${done}/${all.length}` : undefined;
+        })(),
+      },
       draggable: false,
       selectable: false,
     });

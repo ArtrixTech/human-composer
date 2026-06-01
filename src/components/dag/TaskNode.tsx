@@ -9,6 +9,7 @@ export interface TaskNodeData {
   task: Task;
   branchName: string;
   isRecommended?: boolean;
+  dependencyCount?: number;
   onSelect?: (taskId: string) => void;
   onStart?: (taskId: string) => void;
   onComplete?: (taskId: string) => void;
@@ -26,7 +27,7 @@ const STATUS_LABEL: Record<Task["status"], string> = {
 
 function TaskNodeComponent({ data }: NodeProps) {
   const nodeData = data as TaskNodeData;
-  const { task, onStart, onComplete, onPause, onSelect, isRecommended } = nodeData;
+  const { task, onStart, onComplete, onPause, onSelect, isRecommended, dependencyCount } = nodeData;
 
   return (
     <div
@@ -92,6 +93,13 @@ function TaskNodeComponent({ data }: NodeProps) {
         </div>
       </div>
       <div className="task-node__title">{task.title}</div>
+      <div className="task-node__meta">
+        {(task.estimatedMinutes ?? 30) > 0 && (
+          <span>{task.estimatedMinutes ?? 30}m</span>
+        )}
+        {(dependencyCount ?? 0) > 0 && <span>⛓ {dependencyCount}</span>}
+        {task.description && <span>📝</span>}
+      </div>
       <Handle type="source" position={Position.Right} className="task-node__handle" />
     </div>
   );

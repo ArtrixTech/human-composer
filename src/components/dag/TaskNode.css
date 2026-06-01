@@ -25,6 +25,20 @@
 
 .task-node--recommended {
   box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.45);
+  animation: pulse-rec 2s ease-in-out infinite;
+}
+
+@keyframes pulse-rec {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.45); }
+  50% { box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.65); }
+}
+
+.task-node__meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-tertiary);
 }
 
 .task-node--pinned .task-node__status::after {
@@ -137,8 +151,26 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-tertiary);
-  pointer-events: none;
   user-select: none;
+  cursor: default;
+}
+
+.lane-label__progress {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.lane-label-input {
+  width: 96px;
+  padding: 2px 4px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: var(--bg-base);
+  outline: none;
 }
 
 .lane-background {
