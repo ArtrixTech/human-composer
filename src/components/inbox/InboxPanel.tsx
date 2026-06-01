@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Inbox } from "lucide-react";
 
+import * as api from "../../api/tauri";
 import { useAppStore } from "../../store/appStore";
 import "./InboxPanel.css";
 
@@ -9,8 +10,9 @@ export function InboxPanel() {
   const inboxOpen = useAppStore((s) => s.inboxOpen);
   const toggleInbox = useAppStore((s) => s.toggleInbox);
   const addInboxTask = useAppStore((s) => s.addInboxTask);
-  const assignInboxTask = useAppStore((s) => s.assignInboxTask);
+  const refreshAll = useAppStore((s) => s.refreshAll);
   const [title, setTitle] = useState("");
+  const [assigningId, setAssigningId] = useState<string | null>(null);
 
   if (!graph) return null;
 
@@ -21,6 +23,12 @@ export function InboxPanel() {
     if (!value) return;
     await addInboxTask(value);
     setTitle("");
+  };
+
+  const assignToBranch = async (taskId: string, branchId: string) => {
+    await api.assignTaskToBranch(taskId, branchId);
+    await refreshAll();
+    setAssigningId(null);
   };
 
   return (
@@ -49,19 +57,27 @@ export function InboxPanel() {
               <p className="inbox-panel__empty">Inbox 为空 — 随时 capture 碎片任务</p>
             ) : (
               inboxTasks.map((task) => (
-                <div key={task.id} className="inbox-panel__item" draggable>
-                  <span>{task.title}</span>
-                  <div className="inbox-panel__assign">
-                    {graph.branches.map((branch) => (
-                      <button
-                        key={branch.id}
-                        type="button"
-                        onClick={() => void assignInboxTask(task.id, branch.id)}
-                      >
-                        → {branch.name}
-                      </button>
-                    ))}
-                  </div>
+                <div key={task.id} className="inbox-panel__item">
+                  <button
+                    type="button"
+                    className="inbox-panel__item-title"
+                    onClick={() => setAssigningId(assigningId === task.id ? null : task.id)}
+                  >
+                    {task.title}
+                  </button>
+                  {assigningId === task.id && (
+                    <div className="inbox-panel__dropdown">
+                      {graph.branches.map((branch) => (
+                        <button
+                          key={branch.id}
+                          type="button"
+                          onClick={() => void assignToBranch(task.id, branch.id)}
+                        >
+                          → {branch.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
             )}
