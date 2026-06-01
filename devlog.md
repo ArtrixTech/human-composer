@@ -75,3 +75,19 @@
 - 前端：`src/components/runway/` 自定义泳道组件（非 React Flow），六阶段实施路径
 
 **Commit:** `553e059`
+
+## 2026-06-01 — DayRunway 执行核查补漏 + UI 交互优化
+
+- **后端**：`populate_lane_with_actionable_tasks` 在泳道为空时自动填充全部 pending 任务（拓扑排序）；有 ready/active 种子时追加下游 pending 管线
+- **后端**：`DayRunwaySnapshot` 新增 `dependencies` 字段，仅传输泳道/backlog 涉及任务的依赖边
+- **前端 pending 态**：TaskBlock 虚线边框、等待标签、阻塞上游任务名；LaneTrack 识别 pending 任务
+- **依赖可视化**：任务块间 `DependencyConnector` 箭头；pending 块显示「等待: [上游]」
+- **时间可视化**：TaskBlock 宽度 100–320px、右上角时间 badge；泳道头显示待解锁预估时间
+- **NowStrip**：Header 下方一句话回答「现在该做什么」，含进行中/可领取/pending 管线引导
+- **信息层级**：Header 展示预计收工 + 剩余工作量；CompletedBar 精简为纯回顾
+- **交互基线**：hover/active/focus-visible 状态；LaneRow 关闭确认、重命名 pencil、+N 可展开、折叠动画
+- **DragOverlay**：完整 TaskBlock 预览（宽度 + meta）
+- **CSS 修复**：补全 `.backlog-pool__assign` 孤立属性；硬编码色迁移到 theme tokens
+- **AddLaneDialog**：Escape 关闭、空名 disabled、类型说明、默认名称
+
+**Commit:** _(pending)_
