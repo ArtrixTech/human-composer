@@ -1,22 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronUp, ExternalLink } from "lucide-react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 
-import type { AppSnapshot } from "../../types";
+import type { TodaySnapshot } from "../../types";
 import * as api from "../../api/tauri";
 import "./FloatingWidget.css";
 
 export function FloatingWidget() {
-  const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<TodaySnapshot | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [title, setTitle] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    void api.getAppSnapshot().then(setSnapshot);
-    const unlisten = listen<AppSnapshot>("graph-updated", (e) => setSnapshot(e.payload));
+    void api.getTodaySnapshot().then(setSnapshot);
+    const unsubs: Promise<() => void>[] = [];
+    unsubs.push(listen<TodaySnapshot>("today-updated", (e) => setSnapshot(e.payload)));
+    unsubs.push(
+      listen("floating-focus-input", () => {
+        void resize(true);
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }),
+    );
     return () => {
-      void unlisten.then((fn) => fn());
+      void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
     };
   }, []);
 
@@ -34,22 +42,38 @@ export function FloatingWidget() {
   const topRec = snapshot?.recommendations[0];
 
   const complete = async () => {
-    if (!active || !snapshot) return;
-    await api.completeTask(active.task.id, snapshot.projectId);
+    if (!active) return;
+    const result = await api.completeTask(active.task.id, active.projectId);
+    const updated = await api.getTodaySnapshot();
+    setSnapshot(updated);
+    if (result.recommendations.length > 0 && !expanded) {
+      void resize(true);
+    }
   };
 
   const addTask = async () => {
-    if (!snapshot || !title.trim()) return;
-    await api.createTask(snapshot.projectId, title.trim());
+    const projectId = snapshot?.schedule[0]?.projectId ?? snapshot?.activeTask?.projectId;
+    if (!projectId || !title.trim()) return;
+    await api.createTask(projectId, title.trim());
     setTitle("");
+    const updated = await api.getTodaySnapshot();
+    setSnapshot(updated);
+  };
+
+  const onBackgroundMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest("button, input, textarea, a")) return;
+    void getCurrentWindow().startDragging();
   };
 
   if (!expanded) {
     return (
-      <div className="floating floating--collapsed" data-tauri-drag-region>
-        <span className="floating__task-name">
-          {active?.task.title ?? "选择任务…"}
-        </span>
+      <div
+        className="floating floating--collapsed"
+        data-tauri-drag-region
+        onMouseDown={onBackgroundMouseDown}
+      >
+        <span className="floating__task-name">{active?.task.title ?? "选择任务…"}</span>
         {active && (
           <button type="button" className="floating__complete" onClick={() => void complete()}>
             <Check size={14} />
@@ -63,10 +87,21 @@ export function FloatingWidget() {
   }
 
   return (
-    <div className="floating floating--expanded">
-      <header className="floating__header" data-tauri-drag-region>
-        <span>{snapshot?.projectName}</span>
-        <button type="button" onClick={() => void resize(false)}>—</button>
+    <div
+      className="floating floating--expanded"
+      data-tauri-drag-region
+      onMouseDown={onBackgroundMouseDown}
+    >
+      <header className="floating__header">
+        <span className="floating__header-title">今日安排</span>
+        <div className="floating__header-actions">
+          <button type="button" onClick={() => void api.showMainWindow()} title="打开主窗口">
+            <ExternalLink size={14} />
+          </button>
+          <button type="button" className="floating__collapse" onClick={() => void resize(false)}>
+            —
+          </button>
+        </div>
       </header>
 
       <section className="floating__section">
@@ -74,7 +109,11 @@ export function FloatingWidget() {
         {active ? (
           <>
             <div className="floating__current-title">{active.task.title}</div>
-            {active.branchName && <span className="floating__branch">{active.branchName}</span>}
+            {active.branchName && (
+              <span className="floating__branch">
+                {active.projectName} · {active.branchName}
+              </span>
+            )}
             <button type="button" className="floating__cta" onClick={() => void complete()}>
               完成
             </button>
@@ -91,7 +130,12 @@ export function FloatingWidget() {
           <button
             type="button"
             className="floating__cta"
-            onClick={() => void api.activateTask(topRec.task.id, snapshot!.projectId)}
+            onClick={() =>
+              void api.activateTask(
+                topRec.task.id,
+                topRec.projectId ?? topRec.task.projectId,
+              )
+            }
           >
             开始
           </button>
@@ -99,15 +143,15 @@ export function FloatingWidget() {
       )}
 
       <section className="floating__section">
-        <h4>Ready</h4>
+        <h4>队列</h4>
         <div className="floating__ready-list">
-          {snapshot?.readyTasks.slice(0, 5).map((t) => (
+          {snapshot?.schedule.slice(0, 5).map((item) => (
             <button
-              key={t.task.id}
+              key={item.task.id}
               type="button"
-              onClick={() => void api.activateTask(t.task.id, snapshot!.projectId)}
+              onClick={() => void api.activateTask(item.task.id, item.projectId)}
             >
-              {t.task.title}
+              {item.task.title}
             </button>
           ))}
         </div>
@@ -115,6 +159,7 @@ export function FloatingWidget() {
 
       <footer className="floating__footer">
         <input
+          ref={inputRef}
           placeholder="快速添加…"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -122,9 +167,6 @@ export function FloatingWidget() {
             if (e.key === "Enter") void addTask();
           }}
         />
-        <button type="button" onClick={() => void api.showMainWindow()}>
-          <ExternalLink size={14} />
-        </button>
       </footer>
     </div>
   );

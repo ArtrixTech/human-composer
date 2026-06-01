@@ -7,6 +7,8 @@ import "./components/floating/FloatingWidget.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <FloatingWidget />
+    <div className="floating-shell">
+      <FloatingWidget />
+    </div>
   </React.StrictMode>,
 );

@@ -1,3 +1,11 @@
+.floating-shell {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--window-radius);
+  background: transparent;
+}
+
 .floating {
   height: 100%;
   min-height: 0;
@@ -8,6 +16,10 @@
   font-family: var(--font-sans);
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: drag;
+  app-region: drag;
 }
 
 .floating--collapsed {
@@ -20,15 +32,20 @@
 
 .floating__task-name {
   flex: 1;
+  min-width: 0;
   font-size: 12px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
 }
 
 .floating__complete,
-.floating__expand {
+.floating__expand,
+.floating__collapse {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
   width: 28px;
   height: 28px;
   display: flex;
@@ -36,6 +53,7 @@
   justify-content: center;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .floating__complete {
@@ -56,10 +74,36 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-subtle);
   font-size: 11px;
   color: var(--text-tertiary);
+}
+
+.floating__header-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating__header-actions {
+  display: flex;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.floating__header-actions button {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
 }
 
 .floating__section {
@@ -90,6 +134,14 @@
   margin-top: 4px;
   font-size: 11px;
   color: var(--text-tertiary);
+}
+
+.floating__cta,
+.floating__ready-list button,
+.floating__footer input,
+.floating__footer button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .floating__cta {
@@ -141,6 +193,8 @@
   background: var(--bg-base);
   outline: none;
   font-size: 12px;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .floating__footer button {
