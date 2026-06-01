@@ -73,3 +73,5 @@
 - 泳道填充策略：继承昨日泳道结构、新 Ready 任务追加到活跃泳道、用户手动拖拽调整
 - 数据模型：`day_lanes` / `day_lane_tasks` 表、Task 外部任务字段、每泳道单 Active 约束
 - 前端：`src/components/runway/` 自定义泳道组件（非 React Flow），六阶段实施路径
+
+**Commit:** `553e059`
