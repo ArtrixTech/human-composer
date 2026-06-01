@@ -38,6 +38,19 @@ isProject: false
 
 ---
 
+## 产品核心视角：以人为中心的日程管理
+
+Human Composer 服务于**单一用户**跨多项目的时间管理。产品提供两种互补视角：
+
+| 视角 | 入口 | 回答的问题 |
+|------|------|-----------|
+| **Today View（今日安排）** | 应用默认首页 | 从现在到今天结束，我该按什么顺序做什么？做完大约几点？ |
+| **Project DAG（项目编排）** | Sidebar 点击项目 | 这个项目的并行支线、依赖关系如何编排？ |
+
+Today View 是「现在该做什么」的终极答案；Project DAG 是深度编排工具，仅在需要规划项目结构时使用。
+
+---
+
 ## 分层交互模型
 
 用户的日常执行不依赖主窗口。三层交互面按认知成本递增排列：
@@ -53,19 +66,21 @@ flowchart LR
         Expanded["展开态: 完成/推荐/添加"]
     end
     subgraph L3 ["Layer 3: 主窗口"]
-        DAG["泳道 DAG 编排"]
+        TodayView["Today View 今日安排 (默认)"]
+        DAG["Project DAG 编排"]
         InboxMgr["Inbox 管理"]
         DepEdit["依赖/支线管理"]
     end
     Tray --> TrayMenu
     TrayMenu -->|"打开面板"| Expanded
     Collapsed -->|"点击展开"| Expanded
-    Expanded -->|"深度编辑"| DAG
+    Expanded -->|"打开主窗口"| TodayView
+    TodayView -->|"点击项目"| DAG
 ```
 
-- **Layer 1 菜单栏**：零成本 glance，一键完成当前任务
-- **Layer 2 悬浮窗**：日常执行的主界面，折叠时为小卡片常驻屏幕边缘，展开后支持完整的「完成→推荐→开始」循环
-- **Layer 3 主窗口**：规划编排、全局视图、依赖管理
+- **Layer 1 菜单栏**：零成本 glance，一键完成当前任务（跨项目 today snapshot）
+- **Layer 2 悬浮窗**：日常执行的主界面，展示今日队列前几项，支持「完成→推荐→开始」循环
+- **Layer 3 主窗口**：默认 Today View（跨项目日程时间轴）；点击 Sidebar 项目进入 Project DAG 深度编排
 
 ### 核心执行循环
 
@@ -98,10 +113,17 @@ flowchart TD
 AppShell
 +-- TitleBar (Tauri 自定义标题栏, 可拖拽)
 +-- Sidebar (左侧, 可折叠)
+|   +-- TodayButton ("今日", 默认选中)
 |   +-- ProjectList
-|   |   +-- ProjectItem (点击切换项目)
+|   |   +-- ProjectItem (点击进入项目 DAG)
 |   +-- AddProjectButton
 +-- MainContent
+|   +-- [TodayView] (默认视图)
+|   |   +-- TodayHeader (日期 + TimeBudgetBar)
+|   |   +-- ActiveTaskCard (当前任务大卡片)
+|   |   +-- ScheduleList (可拖拽排序的任务序列)
+|   |   +-- DaySummary (已完成/剩余统计)
+|   +-- [ProjectDAGView] (点击项目时切换)
 |   +-- ProjectHeader (项目名 + 统计: N active / N ready)
 |   +-- DAGCanvas (React Flow 画布, 占满剩余空间)
 |   |   +-- BranchLane (每条支线一行, 含标签)
@@ -175,6 +197,7 @@ erDiagram
         string description
         enum status
         int sort_order
+        int estimated_minutes
         datetime created_at
         datetime completed_at
     }
@@ -223,6 +246,50 @@ stateDiagram-v2
 - **Ready**：所有依赖已满足，可以开始
 - **Active**：当前正在执行
 - **Done**：已完成
+
+### App Settings
+
+- `day_end_time`：用户的一天结束时间（默认 `"22:00"`），用于 Today View 计算可用时间
+- `active_project_id`：当前活跃项目
+
+---
+
+## 今日安排视图（Today View）
+
+### 定位
+
+- 应用**默认首页**，聚合所有项目的 Active + Ready 任务
+- 叠加**时间维度**：每个任务有 `estimated_minutes`（默认 30），按累加映射到时间轴
+- 用户打开应用即可回答「现在该做什么、今天还能做多少」
+
+### 布局
+
+```
+今日安排                           剩余 3h20min / 可用 6h40min
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 13:30  ★ Dashboard 页面               HC开发 · 前端
+ NOW      预估 45min                   [完成] [暂停]
+────────────────────────────────────────────────────────────
+ 14:15    CI 配置                      HC开发 · 部署
+          预估 30min
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 今日已完成 5 项 · 剩余 4 项 · 预计 16:25 完成
+```
+
+### 交互规则
+
+- **完成当前任务** → 队列自动上移，时间段重算，下一个成为 Active（无弹窗）
+- **拖拽调整顺序** → 覆盖推荐排序，时间段随之重算
+- **点击项目标签** → 切换到该项目的 DAG 视图
+- **跳过任务** → 移到队列末尾或从今日安排移除
+
+### Today Snapshot API
+
+`get_today_snapshot` 返回：
+- 跨项目 Active 任务（全局最多 1 个）
+- 跨项目 Ready 任务（推荐引擎排序）
+- 今日已完成任务列表
+- 时间预算（剩余工作量 / 可用时间 / 预计完成时间）
 
 ---
 
@@ -280,20 +347,28 @@ Project: Human Composer 开发
 
 ### 算法
 
-1. **筛选**：所有 status = Ready 的任务
+1. **筛选**：所有 status = Ready 的任务（Today View 跨所有项目聚合）
 2. **排序**（加权组合）：
    - **关键路径优先**：阻塞下游任务最多的排前
    - **支线均衡**：长时间未推进的支线权重提升（鼓励并行）
    - **用户置顶**：手动标记的优先任务权重最高
-3. **呈现**：排序后的 Ready 列表，#1 为"推荐"，在 DAG 图 + 悬浮窗 + 菜单栏同步高亮
+3. **呈现**：排序后的 Ready 列表，#1 为"推荐"，在 Today View / DAG / 悬浮窗 / 菜单栏同步高亮
+
+### 日程排布（Today View）
+
+推荐排序后的 Ready 队列，按 `estimated_minutes` 累加映射到从当前时间开始的时间段：
+- 用户可拖拽调整顺序（覆盖推荐排序）
+- 完成任务后，已完成项折叠，剩余任务时间段自动前移
+- 时间预算 = 剩余任务总时长 vs 当前时间到 `day_end_time` 的可用时间
 
 ### 完成→推荐循环（核心交互）
 
 用户在任意 Layer 完成任务后：
 1. Toast 反馈 (1-2s) + Undo
-2. 系统重算推荐
-3. 自动弹出推荐的下一个任务，用户确认开始 / 选其他 / 暂不开始
-4. 所有 Layer 同步更新状态
+2. 系统重算推荐与日程排布
+3. **Today View**：队列自动上移，下一个任务成为 Active（无弹窗）
+4. **Project DAG**：右下角滑入式推荐卡片（非模态），5-8 秒后自动消失
+5. 所有 Layer 同步更新状态
 
 ---
 

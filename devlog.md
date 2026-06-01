@@ -43,3 +43,19 @@
 - `AGENTS.md` 补充「按具体改进项拆分提交」规范
 
 **Commit:** `5ca1bc6` (UI chrome), `ec2d0c3` (window config), `6594273` (AGENTS 规范)
+
+## 2026-06-01 — 交互优化与目标对齐（Today View + 全链路 UX）
+
+- 更新产品设计文档：以人为中心的日程管理视角、Today View 章节、`estimated_minutes`、跨项目推荐与时间轴排布
+- 更新 `AGENTS.md`：核心功能新增「今日安排视图」
+- **数据层**：Task 新增 `estimated_minutes`；Settings 新增 `day_end_time`；新增 `get_today_snapshot` 跨项目聚合 API 与 `today.rs` 时间预算算法；全局单 Active 约束；新增 `delete_project` / `rename_branch` / `unarchive_branch` / `reorder_task` / `list_archived_branches`
+- **Today View**：默认首页，含 TimeBudgetBar、ActiveTaskCard、ScheduleList、DaySummary；Sidebar「今日」入口与视图切换
+- **悬浮窗 + Tray**：改用 today snapshot；移除 220ms 展开延迟；完成后展示推荐；Tray「快速添加任务…」
+- **支线管理**：DAG「+ 新支线」、泳道双击重命名、右键归档、归档支线恢复面板
+- **DetailPanel**：状态操作按钮、依赖删除、预估时长、上移/下移、删除任务
+- **推荐非模态**：DAG 右下角滑入卡片，7s 自动消失；Today View 队列自动推进
+- **Inbox + 删除**：点击下拉分配支线；Sidebar 项目右键删除
+- **DAG 打磨**：隐藏已完成、空状态引导、泳道/项目进度条
+- **体验打磨**：Command Palette 跨项目搜索与键盘导航、Toast 退出动画与进度条、Escape 关闭面板、TaskNode 信息密度
+
+**Commit:** `7497a14` (prior), _(pending split commits)_
