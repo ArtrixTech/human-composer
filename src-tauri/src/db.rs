@@ -945,6 +945,26 @@ impl Database {
     }
 
     pub fn close_day_lane(&self, lane_id: &str) -> rusqlite::Result<()> {
+        let lane = self.get_day_lane(lane_id)?;
+        let date = lane.date;
+        let task_ids = self.get_lane_task_ids(lane_id)?;
+
+        let remaining: Vec<DayLane> = self
+            .get_lanes_for_date(&date)?
+            .into_iter()
+            .filter(|l| l.id != lane_id)
+            .collect();
+
+        let target_lane_id = if let Some(target) = remaining.first() {
+            target.id.clone()
+        } else {
+            self.create_day_lane(&date, "主线", DayLaneType::Focus)?.id
+        };
+
+        for task_id in task_ids {
+            self.assign_task_to_lane(&task_id, &target_lane_id, None)?;
+        }
+
         self.conn.execute("DELETE FROM day_lanes WHERE id = ?1", params![lane_id])?;
         Ok(())
     }
@@ -1124,7 +1144,23 @@ impl Database {
             self.assign_task_to_lane(&item.task.id, lane_id, None)?;
         }
 
-        self.append_pending_pipeline_to_lane(lane_id, &tasks, &dependencies)
+        self.append_pending_pipeline_to_lane(lane_id, &tasks, &dependencies)?;
+        self.append_all_unassigned_actionable_to_lane(lane_id)
+    }
+
+    /// Assign every Ready/Pending task not yet on any lane today into `lane_id`.
+    fn append_all_unassigned_actionable_to_lane(&self, lane_id: &str) -> rusqlite::Result<()> {
+        let date = self.get_day_lane(lane_id)?.date;
+        let mut assigned = self.assigned_task_ids_for_date(&date)?;
+        for task in self.get_all_tasks()? {
+            if matches!(task.status, TaskStatus::Ready | TaskStatus::Pending)
+                && !assigned.contains(&task.id)
+            {
+                self.assign_task_to_lane(&task.id, lane_id, None)?;
+                assigned.insert(task.id);
+            }
+        }
+        Ok(())
     }
 
     /// Append pending tasks to a lane: downstream of active/ready seeds, or all pending if lane is empty.
@@ -1190,6 +1226,15 @@ impl Database {
 
         if self.count_live_lane_tasks_for_date(date)? == 0 {
             self.populate_lane_with_actionable_tasks(&default_lane_id)?;
+            assigned = self.assigned_task_ids_for_date(date)?;
+        }
+
+        for task in &all_tasks {
+            if matches!(task.status, TaskStatus::Ready | TaskStatus::Pending)
+                && !assigned.contains(&task.id)
+            {
+                self.assign_task_to_lane(&task.id, &default_lane_id, None)?;
+            }
         }
 
         Ok(())
