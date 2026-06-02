@@ -20,7 +20,10 @@ export function CommandPalette() {
   const selectProjectView = useAppStore((s) => s.selectProjectView);
   const selectTodayView = useAppStore((s) => s.selectTodayView);
   const createBranch = useAppStore((s) => s.createBranch);
-  const todaySnapshot = useAppStore((s) => s.todaySnapshot);
+  const createLane = useAppStore((s) => s.createLane);
+  const setAddLaneOpen = useAppStore((s) => s.setAddLaneOpen);
+  const runwaySnapshot = useAppStore((s) => s.runwaySnapshot);
+  const claimTask = useAppStore((s) => s.claimTask);
   const projects = useAppStore((s) => s.projects);
   const graph = useAppStore((s) => s.graph);
   const [query, setQuery] = useState("");
@@ -77,8 +80,19 @@ export function CommandPalette() {
           group: "命令",
           action: () => createBranch(name),
         });
+    } else if (q.startsWith("/lane ") || q.startsWith("泳道 ")) {
+      const name = q.replace(/^(\/lane|泳道)\s+/i, "");
+      if (name)
+        items.push({
+          id: "lane-new",
+          label: `创建专注泳道「${name}」`,
+          group: "命令",
+          action: () => createLane(name, "focus"),
+        });
     } else if (q === "完成" || q === "done" || q.startsWith("/complete")) {
-      const active = todaySnapshot?.activeTask;
+      const active = runwaySnapshot?.lanes
+        .flatMap((l) => l.tasks)
+        .find((t) => t.task.status === "active");
       if (active)
         items.push({
           id: "complete",
@@ -88,24 +102,37 @@ export function CommandPalette() {
         });
     } else if (q.startsWith("开始 ") || q.startsWith("start ")) {
       const name = q.replace(/^(开始|start)\s+/i, "");
-      todaySnapshot?.schedule
-        .filter((s) => s.task.title.toLowerCase().includes(name))
-        .forEach((s) =>
-          items.push({
-            id: `start-${s.task.id}`,
-            label: s.task.title,
-            group: "任务",
-            action: () => activateTask(s.task.id, s.projectId),
-          }),
-        );
+      runwaySnapshot?.lanes.forEach((lane) => {
+        lane.tasks
+          .filter((t) => t.task.title.toLowerCase().includes(name))
+          .forEach((t) =>
+            items.push({
+              id: `start-${t.task.id}`,
+              label: t.task.title,
+              group: lane.lane.name,
+              action: () => claimTask(t.task.id, lane.lane.id, t.projectId),
+            }),
+          );
+      });
     } else {
-      todaySnapshot?.schedule.forEach((s) => {
-        if (!q || s.task.title.toLowerCase().includes(q))
+      runwaySnapshot?.lanes.forEach((lane) => {
+        lane.tasks.forEach((t) => {
+          if (!q || t.task.title.toLowerCase().includes(q))
+            items.push({
+              id: `lane-task-${t.task.id}`,
+              label: `${t.task.title} (${lane.lane.name})`,
+              group: "泳道",
+              action: () => claimTask(t.task.id, lane.lane.id, t.projectId),
+            });
+        });
+      });
+      runwaySnapshot?.backlog.forEach((t) => {
+        if (!q || t.task.title.toLowerCase().includes(q))
           items.push({
-            id: `task-${s.task.id}`,
-            label: `${s.task.title} (${s.projectName})`,
-            group: "今日队列",
-            action: () => activateTask(s.task.id, s.projectId),
+            id: `backlog-${t.task.id}`,
+            label: `${t.task.title} (待分配)`,
+            group: "待分配",
+            action: () => {},
           });
       });
       graph?.tasks.forEach((t) => {
@@ -134,6 +161,12 @@ export function CommandPalette() {
         group: "导航",
         action: () => selectTodayView(),
       });
+      items.push({
+        id: "add-lane",
+        label: "新建泳道",
+        group: "命令",
+        action: () => setAddLaneOpen(true),
+      });
       if (q)
         items.push({
           id: "add",
@@ -146,7 +179,10 @@ export function CommandPalette() {
   }, [
     query,
     projects,
-    todaySnapshot,
+    runwaySnapshot,
+    createLane,
+    setAddLaneOpen,
+    claimTask,
     graph,
     selectProjectView,
     selectTodayView,

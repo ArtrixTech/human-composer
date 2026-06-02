@@ -206,6 +206,47 @@
   color: var(--text-secondary);
 }
 
+.floating__badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #fb923c;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floating--collapsed {
+  position: relative;
+}
+
+.floating__header-badge {
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(251, 146, 60, 0.2);
+  color: #fb923c;
+  font-weight: 600;
+}
+
+.floating__section--review h4 {
+  color: #fb923c;
+}
+
+.floating__lane-badge {
+  margin-left: 4px;
+  color: #fb923c;
+  font-weight: 700;
+}
+
 .floating__footer button:hover {
   background: var(--bg-hover);
 }

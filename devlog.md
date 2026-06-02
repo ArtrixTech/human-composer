@@ -90,4 +90,16 @@
 - **CSS 修复**：补全 `.backlog-pool__assign` 孤立属性；硬编码色迁移到 theme tokens
 - **AddLaneDialog**：Escape 关闭、空名 disabled、类型说明、默认名称
 
-**Commit:** `42d5936` (frontend), `28c5b3d` (backend)
+**Commit:** `42d5936` (frontend), `28c5b3d` (backend), `40afe3f` (devlog)
+
+## 2026-06-02 — DayRunway 集成 + Focus/Watch 交互流程修复
+
+- **TodayView 退役**：AppShell 默认视图改为 `DayRunway`；删除 `src/components/today/`；store/API 全面切换为 `runwaySnapshot` 与泳道 CRUD / claim / external 命令
+- **Focus/Watch 双轨状态机**：委派时从 focus 泳道强制迁入 watch 泳道；`claim_task` 不再暂停外部委派任务；`active_task_id` / `focus_lane_count` 仅统计 focus-active；rework 重置 `task_type=normal`
+- **NowStrip 动作路由**：优先级 待审核 → 专注进行中 → 可领取 → 外部运行中；禁止对外部任务误调 `completeTask`
+- **LaneTrack 渲染**：仅 `isExternalActive` 走 ExternalTaskBlock；普通任务误入 watch 泳道仍可领取
+- **UI 栅格化**：TaskBlock/ExternalTaskBlock 独立拖拽手柄、标题 line-clamp、actions 底栏对齐；LaneRow header grid；NowStrip 新状态样式
+- **三层交互面**：Tray / 悬浮窗按任务类型路由「完成 / 标记完成 / 审核」；委派成功 toast 引导继续领取
+- 新增 `runwayTaskUtils.ts`、`ExternalTaskDialog.tsx`、`LaneTimeline.tsx`
+
+**Commit:** (pending)

@@ -6,6 +6,9 @@ import type {
   BranchSuggestion,
   CompleteTaskResult,
   CreateTaskResult,
+  DayLane,
+  DayLaneType,
+  DayRunwaySnapshot,
   ProjectGraph,
   ProjectSummary,
   Task,
@@ -38,6 +41,96 @@ export function getAppSnapshot(projectId?: string): Promise<AppSnapshot> {
 
 export function getTodaySnapshot(): Promise<TodaySnapshot> {
   return invoke("get_today_snapshot");
+}
+
+export function getDayRunwaySnapshot(): Promise<DayRunwaySnapshot> {
+  return invoke("get_day_runway_snapshot");
+}
+
+export function autoPopulateRunway(date?: string): Promise<void> {
+  return invoke("auto_populate_runway", { date: date ?? null });
+}
+
+export function createDayLane(
+  name: string,
+  laneType: DayLaneType,
+  date?: string,
+): Promise<DayLane> {
+  return invoke("create_day_lane", { date: date ?? null, name, laneType });
+}
+
+export function closeDayLane(laneId: string): Promise<void> {
+  return invoke("close_day_lane", { laneId });
+}
+
+export function renameDayLane(laneId: string, name: string): Promise<DayLane> {
+  return invoke("rename_day_lane", { laneId, name });
+}
+
+export function reorderDayLanes(laneIds: string[], date?: string): Promise<void> {
+  return invoke("reorder_day_lanes", { date: date ?? null, laneIds });
+}
+
+export function assignTaskToLane(
+  taskId: string,
+  laneId: string,
+  position?: number,
+): Promise<void> {
+  return invoke("assign_task_to_lane", { taskId, laneId, position: position ?? null });
+}
+
+export function removeTaskFromLane(taskId: string, laneId: string): Promise<void> {
+  return invoke("remove_task_from_lane", { taskId, laneId });
+}
+
+export function reorderLaneTasks(laneId: string, taskIds: string[]): Promise<void> {
+  return invoke("reorder_lane_tasks", { laneId, taskIds });
+}
+
+export function moveTaskBetweenLanes(
+  taskId: string,
+  fromLaneId: string,
+  toLaneId: string,
+  position?: number,
+): Promise<void> {
+  return invoke("move_task_between_lanes", {
+    taskId,
+    fromLaneId,
+    toLaneId,
+    position: position ?? null,
+  });
+}
+
+export function claimTask(taskId: string, laneId: string, projectId: string): Promise<Task> {
+  return invoke("claim_task", { taskId, laneId, projectId });
+}
+
+export function startExternalTask(
+  taskId: string,
+  projectId: string,
+  estimatedMinutes: number,
+  note?: string,
+  laneId?: string,
+): Promise<Task> {
+  return invoke("start_external_task", {
+    taskId,
+    projectId,
+    laneId: laneId ?? null,
+    estimatedMinutes,
+    note: note ?? null,
+  });
+}
+
+export function completeExternalTask(taskId: string, projectId: string): Promise<Task> {
+  return invoke("complete_external_task", { taskId, projectId });
+}
+
+export function reviewExternalTask(
+  taskId: string,
+  projectId: string,
+  action: "done" | "rework",
+): Promise<Task> {
+  return invoke("review_external_task", { taskId, projectId, action });
 }
 
 export function createBranch(projectId: string, name: string): Promise<string> {

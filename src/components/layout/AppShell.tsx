@@ -6,7 +6,7 @@ import { DAGCanvas } from "../dag/DAGCanvas";
 import { InboxPanel } from "../inbox/InboxPanel";
 import { RecommendPrompt } from "../recommend/RecommendPrompt";
 import { ToastContainer } from "../toast/ToastContainer";
-import { TodayView } from "../today/TodayView";
+import { DayRunway } from "../runway/DayRunway";
 import { ProjectHeader } from "./ProjectHeader";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
@@ -37,7 +37,7 @@ export function AppShell() {
           {loading && !graph && currentView === "project" ? (
             <div className="app-shell__loading">加载中…</div>
           ) : currentView === "today" ? (
-            <TodayView />
+            <DayRunway />
           ) : (
             <>
               <ProjectHeader />

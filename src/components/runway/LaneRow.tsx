@@ -1,11 +1,12 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
-import { ChevronDown, Pencil, X } from "lucide-react";
+import { ChevronDown, Hourglass, Pencil, Target, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { DayLaneSnapshot, TaskDependency } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { formatMinutesTotal } from "./taskBlockUtils";
+import { LaneTimeline } from "./LaneTimeline";
 import { LaneTrack } from "./LaneTrack";
 
 const VISIBLE_CAP = 7;
@@ -61,59 +62,72 @@ export function LaneRow({
     setConfirmClose(true);
   };
 
+  const LaneIcon = isWatch ? Hourglass : Target;
+
   return (
     <div
       ref={setNodeRef}
       className={`lane-row lane-row--${laneSnapshot.lane.laneType}${isOver ? " lane-row--over" : ""}`}
     >
       <div className="lane-row__header">
-        <span className="lane-row__icon">{isWatch ? "⏳" : "🎯"}</span>
-        {editing ? (
-          <input
-            className="lane-row__name-input"
-            value={name}
-            autoFocus
-            onChange={(e) => setName(e.target.value)}
-            onBlur={onRename}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onRename();
-              if (e.key === "Escape") {
-                setName(laneSnapshot.lane.name);
-                setEditing(false);
-              }
-            }}
-          />
-        ) : (
-          <div className="lane-row__name-wrap">
-            <button
-              type="button"
-              className="lane-row__name"
-              onDoubleClick={() => setEditing(true)}
-            >
-              {laneSnapshot.lane.name}
-            </button>
-            <button
-              type="button"
-              className="lane-row__rename"
-              aria-label="重命名泳道"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil size={12} />
-            </button>
-          </div>
-        )}
-        {needsReview && <span className="lane-row__badge">待审核</span>}
-        <span className="lane-row__progress">
-          {laneSnapshot.completedCount}/{laneSnapshot.totalCount}
-        </span>
-        {pendingMinutes > 0 && (
-          <span className="lane-row__pending-est">
-            待解锁 {formatMinutesTotal(pendingMinutes)}
+        <div className="lane-row__identity">
+          <span className={`lane-row__icon lane-row__icon--${laneSnapshot.lane.laneType}`}>
+            <LaneIcon size={14} />
           </span>
-        )}
-        {laneSnapshot.estimatedFinishTime && (
-          <span className="lane-row__finish">~{laneSnapshot.estimatedFinishTime}</span>
-        )}
+          {editing ? (
+            <input
+              className="lane-row__name-input"
+              value={name}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+              onBlur={onRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onRename();
+                if (e.key === "Escape") {
+                  setName(laneSnapshot.lane.name);
+                  setEditing(false);
+                }
+              }}
+            />
+          ) : (
+            <div className="lane-row__name-wrap">
+              <button
+                type="button"
+                className="lane-row__name"
+                onDoubleClick={() => setEditing(true)}
+              >
+                {laneSnapshot.lane.name}
+              </button>
+              <button
+                type="button"
+                className="lane-row__rename"
+                aria-label="重命名泳道"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil size={11} />
+              </button>
+            </div>
+          )}
+          <span className="lane-row__type">
+            {isWatch ? "等待" : "专注"}
+          </span>
+        </div>
+
+        <div className="lane-row__stats">
+          {needsReview && <span className="lane-row__badge">待审核</span>}
+          <span className="lane-row__progress">
+            {laneSnapshot.completedCount}/{laneSnapshot.totalCount}
+          </span>
+          {pendingMinutes > 0 && (
+            <span className="lane-row__pending-est">
+              待解锁 {formatMinutesTotal(pendingMinutes)}
+            </span>
+          )}
+          {laneSnapshot.estimatedFinishTime && (
+            <span className="lane-row__finish">~{laneSnapshot.estimatedFinishTime}</span>
+          )}
+        </div>
+
         <div className="lane-row__actions">
           <button
             type="button"
@@ -155,17 +169,20 @@ export function LaneRow({
       )}
 
       <div className={`lane-row__body${collapsed ? " lane-row__body--collapsed" : ""}`}>
-        <SortableContext
-          items={displayTasks.map((t) => t.task.id)}
-          strategy={horizontalListSortingStrategy}
-        >
-          <LaneTrack
-            laneId={laneSnapshot.lane.id}
-            tasks={displayTasks}
-            isWatch={isWatch}
-            dependencies={dependencies}
-          />
-        </SortableContext>
+        <div className="lane-row__track-wrap">
+          <SortableContext
+            items={displayTasks.map((t) => t.task.id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            <LaneTrack
+              laneId={laneSnapshot.lane.id}
+              tasks={displayTasks}
+              isWatch={isWatch}
+              dependencies={dependencies}
+            />
+          </SortableContext>
+          <LaneTimeline tasks={displayTasks} />
+        </div>
         {!collapsed && hiddenCount > 0 && !showAllTasks && (
           <button
             type="button"

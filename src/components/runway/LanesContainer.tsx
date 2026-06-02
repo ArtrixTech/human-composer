@@ -8,6 +8,7 @@ export function LanesContainer({
 }: {
   lanes: DayLaneSnapshot[];
   dependencies?: TaskDependency[];
+  suggestedClaimTaskId?: string | null;
 }) {
   const backlogCount = useAppStore((s) => s.runwaySnapshot?.backlog.length ?? 0);
   const setAddLaneOpen = useAppStore((s) => s.setAddLaneOpen);

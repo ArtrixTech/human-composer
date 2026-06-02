@@ -1,15 +1,15 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 
-import type { AppSnapshot, TodaySnapshot } from "../types";
-import { useAppStore } from "../store/appStore";
+import type { AppSnapshot, DayRunwaySnapshot } from "../types";
+import { getFirstActiveTask, useAppStore } from "../store/appStore";
 
 export function useGraphSync() {
   const applySnapshot = useAppStore((s) => s.applySnapshot);
-  const applyTodaySnapshot = useAppStore((s) => s.applyTodaySnapshot);
+  const applyRunwaySnapshot = useAppStore((s) => s.applyRunwaySnapshot);
   const setCommandOpen = useAppStore((s) => s.setCommandOpen);
   const completeActive = useAppStore((s) => s.completeTask);
-  const todaySnapshot = useAppStore((s) => s.todaySnapshot);
+  const runwaySnapshot = useAppStore((s) => s.runwaySnapshot);
 
   useEffect(() => {
     const unsubs: Array<Promise<() => void>> = [];
@@ -20,15 +20,20 @@ export function useGraphSync() {
       }),
     );
     unsubs.push(
-      listen<TodaySnapshot>("today-updated", (event) => {
-        applyTodaySnapshot(event.payload);
+      listen<DayRunwaySnapshot>("runway-updated", (event) => {
+        applyRunwaySnapshot(event.payload);
+      }),
+    );
+    unsubs.push(
+      listen<DayRunwaySnapshot>("today-updated", (event) => {
+        applyRunwaySnapshot(event.payload);
       }),
     );
     unsubs.push(listen("shortcut-command-palette", () => setCommandOpen(true)));
     unsubs.push(listen("shortcut-quick-add", () => setCommandOpen(true)));
     unsubs.push(
       listen("shortcut-complete-task", () => {
-        const active = useAppStore.getState().todaySnapshot?.activeTask;
+        const active = getFirstActiveTask();
         if (active) void completeActive(active.task.id, active.projectId);
       }),
     );
@@ -38,6 +43,7 @@ export function useGraphSync() {
         const state = useAppStore.getState();
         if (state.detailOpen) state.setDetailOpen(false);
         else if (state.commandOpen) state.setCommandOpen(false);
+        else if (state.addLaneOpen) state.setAddLaneOpen(false);
         else if (state.recommendPrompt) state.dismissRecommend();
       }
     };
@@ -47,7 +53,7 @@ export function useGraphSync() {
       window.removeEventListener("keydown", onKey);
       void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
     };
-  }, [applySnapshot, applyTodaySnapshot, setCommandOpen, completeActive]);
+  }, [applySnapshot, applyRunwaySnapshot, setCommandOpen, completeActive]);
 
-  return todaySnapshot;
+  return runwaySnapshot;
 }

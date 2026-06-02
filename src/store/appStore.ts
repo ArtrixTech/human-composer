@@ -3,12 +3,14 @@ import { create } from "zustand";
 import * as api from "../api/tauri";
 import type {
   AppSnapshot,
+  DayLaneType,
+  DayRunwaySnapshot,
   MainView,
   ProjectGraph,
   ProjectSummary,
   RecommendedTask,
   Task,
-  TodaySnapshot,
+  TodayTaskContext,
 } from "../types";
 import { useToastStore } from "./toastStore";
 
@@ -18,7 +20,7 @@ interface AppStore {
   currentView: MainView;
   graph: ProjectGraph | null;
   snapshot: AppSnapshot | null;
-  todaySnapshot: TodaySnapshot | null;
+  runwaySnapshot: DayRunwaySnapshot | null;
   loading: boolean;
   error: string | null;
   sidebarCollapsed: boolean;
@@ -29,7 +31,7 @@ interface AppStore {
   commandOpen: boolean;
   recommendPrompt: RecommendedTask[] | null;
   topRecommendationId: string | null;
-  previousActiveTitle: string | null;
+  addLaneOpen: boolean;
 
   initialize: () => Promise<void>;
   selectTodayView: () => Promise<void>;
@@ -38,28 +40,61 @@ interface AppStore {
   createProject: (name: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
   refreshAll: () => Promise<void>;
-  refreshToday: () => Promise<void>;
+  refreshRunway: () => Promise<void>;
   applySnapshot: (snapshot: AppSnapshot) => Promise<void>;
-  applyTodaySnapshot: (snapshot: TodaySnapshot) => void;
+  applyRunwaySnapshot: (snapshot: DayRunwaySnapshot) => void;
   toggleSidebar: () => void;
   toggleInbox: () => void;
   toggleHideDone: () => void;
   selectTask: (taskId: string | null) => void;
   setDetailOpen: (open: boolean) => void;
   setCommandOpen: (open: boolean) => void;
+  setAddLaneOpen: (open: boolean) => void;
   dismissRecommend: () => void;
+
+  createLane: (name: string, laneType: DayLaneType) => Promise<void>;
+  closeLane: (laneId: string) => Promise<void>;
+  renameLane: (laneId: string, name: string) => Promise<void>;
+  assignToLane: (taskId: string, laneId: string, position?: number) => Promise<void>;
+  removeFromLane: (taskId: string, laneId: string) => Promise<void>;
+  reorderLaneTasks: (laneId: string, taskIds: string[]) => Promise<void>;
+  moveBetweenLanes: (
+    taskId: string,
+    fromLaneId: string,
+    toLaneId: string,
+    position?: number,
+  ) => Promise<void>;
+  claimTask: (taskId: string, laneId: string, projectId: string) => Promise<void>;
+  startExternal: (
+    taskId: string,
+    projectId: string,
+    laneId: string | undefined,
+    minutes: number,
+    note?: string,
+  ) => Promise<void>;
+  completeExternal: (taskId: string, projectId: string) => Promise<void>;
+  reviewExternal: (taskId: string, projectId: string, action: "done" | "rework") => Promise<void>;
 
   addInboxTask: (title: string) => Promise<void>;
   addBranchTask: (branchId: string, title: string) => Promise<void>;
   createBranch: (name: string) => Promise<void>;
   renameBranch: (branchId: string, name: string) => Promise<void>;
   assignInboxTask: (taskId: string, branchId: string) => Promise<void>;
-  completeTask: (taskId: string, projectId?: string) => Promise<void>;
-  activateTask: (taskId: string, projectId: string) => Promise<void>;
+  completeTask: (taskId: string, projectId?: string, laneId?: string) => Promise<void>;
+  activateTask: (taskId: string, projectId: string, laneId?: string) => Promise<void>;
   pauseTask: (taskId: string, projectId: string) => Promise<void>;
   deleteTask: (taskId: string, projectId: string) => Promise<void>;
   reorderTask: (taskId: string, direction: "up" | "down") => Promise<void>;
   undo: () => Promise<void>;
+}
+
+function firstActiveTask(snapshot: DayRunwaySnapshot | null): TodayTaskContext | null {
+  if (!snapshot) return null;
+  for (const lane of snapshot.lanes) {
+    const active = lane.tasks.find((t) => t.task.status === "active");
+    if (active) return active;
+  }
+  return null;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -68,7 +103,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   currentView: "today",
   graph: null,
   snapshot: null,
-  todaySnapshot: null,
+  runwaySnapshot: null,
   loading: true,
   error: null,
   sidebarCollapsed: false,
@@ -79,17 +114,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
   commandOpen: false,
   recommendPrompt: null,
   topRecommendationId: null,
-  previousActiveTitle: null,
+  addLaneOpen: false,
 
   initialize: async () => {
     set({ loading: true, error: null });
     try {
-      const [projects, todaySnapshot] = await Promise.all([
+      const [projects, runwaySnapshot] = await Promise.all([
         api.listProjects(),
-        api.getTodaySnapshot(),
+        api.getDayRunwaySnapshot(),
       ]);
       const activeProjectId = projects[0]?.id ?? null;
-      set({ projects, activeProjectId, todaySnapshot, currentView: "today" });
+      set({ projects, activeProjectId, runwaySnapshot, currentView: "today" });
       if (activeProjectId) {
         const [graph, snapshot] = await Promise.all([
           api.getProjectGraph(activeProjectId),
@@ -110,7 +145,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   selectTodayView: async () => {
     set({ currentView: "today", selectedTaskId: null, detailOpen: false });
-    await get().refreshToday();
+    await get().refreshRunway();
   },
 
   selectProjectView: async (projectId) => {
@@ -144,11 +179,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   createProject: async (name) => {
     const id = await api.createProject(name);
-    const [projects, todaySnapshot] = await Promise.all([
+    const [projects, runwaySnapshot] = await Promise.all([
       api.listProjects(),
-      api.getTodaySnapshot(),
+      api.getDayRunwaySnapshot(),
     ]);
-    set({ projects, activeProjectId: id, todaySnapshot });
+    set({ projects, activeProjectId: id, runwaySnapshot });
     const [graph, snapshot] = await Promise.all([
       api.getProjectGraph(id),
       api.getAppSnapshot(id),
@@ -164,9 +199,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   deleteProject: async (projectId) => {
     await api.deleteProject(projectId);
     const projects = await api.listProjects();
-    const todaySnapshot = await api.getTodaySnapshot();
+    const runwaySnapshot = await api.getDayRunwaySnapshot();
     const nextId = projects[0]?.id ?? null;
-    set({ projects, activeProjectId: nextId, todaySnapshot, currentView: "today" });
+    set({ projects, activeProjectId: nextId, runwaySnapshot, currentView: "today" });
     if (nextId) {
       const [graph, snapshot] = await Promise.all([
         api.getProjectGraph(nextId),
@@ -180,11 +215,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   refreshAll: async () => {
     const { activeProjectId } = get();
-    const [todaySnapshot, projects] = await Promise.all([
-      api.getTodaySnapshot(),
+    const [runwaySnapshot, projects] = await Promise.all([
+      api.getDayRunwaySnapshot(),
       api.listProjects(),
     ]);
-    set({ todaySnapshot, projects });
+    set({ runwaySnapshot, projects });
     if (activeProjectId) {
       const [graph, snapshot] = await Promise.all([
         api.getProjectGraph(activeProjectId),
@@ -198,9 +233,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  refreshToday: async () => {
-    const todaySnapshot = await api.getTodaySnapshot();
-    set({ todaySnapshot });
+  refreshRunway: async () => {
+    const runwaySnapshot = await api.getDayRunwaySnapshot();
+    set({ runwaySnapshot });
   },
 
   applySnapshot: async (snapshot) => {
@@ -225,17 +260,98 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  applyTodaySnapshot: (snapshot) => {
-    set({ todaySnapshot: snapshot });
+  applyRunwaySnapshot: (snapshot) => {
+    set({ runwaySnapshot: snapshot });
   },
 
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   toggleInbox: () => set((s) => ({ inboxOpen: !s.inboxOpen })),
   toggleHideDone: () => set((s) => ({ hideDoneTasks: !s.hideDoneTasks })),
   selectTask: (taskId) => set({ selectedTaskId: taskId, detailOpen: taskId !== null }),
-  setDetailOpen: (open) => set({ detailOpen: open, selectedTaskId: open ? get().selectedTaskId : null }),
+  setDetailOpen: (open) =>
+    set({ detailOpen: open, selectedTaskId: open ? get().selectedTaskId : null }),
   setCommandOpen: (open) => set({ commandOpen: open }),
+  setAddLaneOpen: (open) => set({ addLaneOpen: open }),
   dismissRecommend: () => set({ recommendPrompt: null }),
+
+  createLane: async (name, laneType) => {
+    await api.createDayLane(name, laneType);
+    await get().refreshRunway();
+    useToastStore.getState().push({ message: `已创建泳道「${name}」` });
+  },
+
+  closeLane: async (laneId) => {
+    await api.closeDayLane(laneId);
+    await get().refreshRunway();
+    useToastStore.getState().push({ message: "泳道已关闭，任务已回到待分配池" });
+  },
+
+  renameLane: async (laneId, name) => {
+    await api.renameDayLane(laneId, name);
+    await get().refreshRunway();
+  },
+
+  assignToLane: async (taskId, laneId, position) => {
+    await api.assignTaskToLane(taskId, laneId, position);
+    await get().refreshRunway();
+  },
+
+  removeFromLane: async (taskId, laneId) => {
+    await api.removeTaskFromLane(taskId, laneId);
+    await get().refreshRunway();
+  },
+
+  reorderLaneTasks: async (laneId, taskIds) => {
+    await api.reorderLaneTasks(laneId, taskIds);
+    await get().refreshRunway();
+  },
+
+  moveBetweenLanes: async (taskId, fromLaneId, toLaneId, position) => {
+    await api.moveTaskBetweenLanes(taskId, fromLaneId, toLaneId, position);
+    await get().refreshRunway();
+  },
+
+  claimTask: async (taskId, laneId, projectId) => {
+    const previous = firstActiveTask(get().runwaySnapshot);
+    await api.claimTask(taskId, laneId, projectId);
+    await get().refreshAll();
+    set({ recommendPrompt: null });
+    const newActive = firstActiveTask(get().runwaySnapshot);
+    if (previous && newActive && previous.task.id !== newActive.task.id) {
+      useToastStore.getState().push({
+        message: `已切换到「${newActive.task.title}」`,
+      });
+    }
+  },
+
+  startExternal: async (taskId, projectId, laneId, minutes, note) => {
+    await api.startExternalTask(taskId, projectId, minutes, note, laneId);
+    await get().refreshAll();
+    // Check if there is a claimable task in a focus lane to surface to the user
+    const snapshot = get().runwaySnapshot;
+    const hasClaimable = snapshot?.lanes.some(
+      (l) => l.lane.laneType === "focus" && l.tasks.some((t) => t.task.status === "ready"),
+    );
+    useToastStore.getState().push({
+      message: hasClaimable
+        ? "已委派至等待泳道 · 可继续领取下一项专注任务"
+        : "已委派至等待泳道",
+    });
+  },
+
+  completeExternal: async (taskId, projectId) => {
+    await api.completeExternalTask(taskId, projectId);
+    await get().refreshAll();
+    useToastStore.getState().push({ message: "外部任务已完成，等待审核" });
+  },
+
+  reviewExternal: async (taskId, projectId, action) => {
+    await api.reviewExternalTask(taskId, projectId, action);
+    await get().refreshAll();
+    useToastStore.getState().push({
+      message: action === "done" ? "审核完成" : "已退回重做",
+    });
+  },
 
   addInboxTask: async (title) => {
     const { activeProjectId } = get();
@@ -291,22 +407,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     useToastStore.getState().push({ message: "已分配到支线" });
   },
 
-  completeTask: async (taskId, projectId) => {
-    const pid = projectId ?? get().activeProjectId;
-    if (!pid) {
-      const task = get().todaySnapshot?.activeTask;
-      if (!task) return;
-      const result = await api.completeTask(taskId, task.projectId);
-      await get().refreshAll();
-      useToastStore.getState().push({
-        message: `已完成「${result.completedTask.title}」`,
-        undo: () => get().undo(),
-      });
-      if (get().currentView === "project" && result.recommendations.length > 0) {
-        set({ recommendPrompt: result.recommendations });
-      }
-      return;
-    }
+  completeTask: async (taskId, projectId, _laneId) => {
+    const pid =
+      projectId ??
+      get().runwaySnapshot?.lanes
+        .flatMap((l) => l.tasks)
+        .find((t) => t.task.id === taskId)?.projectId;
+    if (!pid) return;
     const result = await api.completeTask(taskId, pid);
     await get().refreshAll();
     useToastStore.getState().push({
@@ -318,20 +425,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  activateTask: async (taskId, projectId) => {
-    const previousTitle =
-      get().todaySnapshot?.activeTask?.task.title ??
-      get().snapshot?.activeTask?.task.title ??
-      null;
+  activateTask: async (taskId, projectId, laneId) => {
+    if (laneId) {
+      await get().claimTask(taskId, laneId, projectId);
+      return;
+    }
     await api.activateTask(taskId, projectId);
     await get().refreshAll();
     set({ recommendPrompt: null });
-    const newActive = get().todaySnapshot?.activeTask?.task.title;
-    if (previousTitle && newActive && previousTitle !== newActive) {
-      useToastStore.getState().push({
-        message: `已切换到「${newActive}」，「${previousTitle}」已暂停`,
-      });
-    }
   },
 
   pauseTask: async (taskId, projectId) => {
@@ -366,4 +467,8 @@ export function getSelectedTask(): Task | null {
   const { graph, selectedTaskId } = useAppStore.getState();
   if (!graph || !selectedTaskId) return null;
   return graph.tasks.find((t) => t.id === selectedTaskId) ?? null;
+}
+
+export function getFirstActiveTask(): TodayTaskContext | null {
+  return firstActiveTask(useAppStore.getState().runwaySnapshot);
 }

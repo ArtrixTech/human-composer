@@ -8,17 +8,21 @@ export function TaskBlockPreview({
   ctx: TodayTaskContext;
   isPending?: boolean;
 }) {
-  const est = ctx.task.estimatedMinutes ?? 30;
-  const meta = [ctx.projectName, ctx.branchName, `${est}min`].filter(Boolean).join(" · ");
+  const meta = [ctx.projectName, ctx.branchName].filter(Boolean).join(" · ");
 
   return (
     <div
       className={`task-block task-block--dragging${isPending ? " task-block--pending" : ""}`}
       style={{ width: blockWidth(ctx.task.estimatedMinutes) }}
     >
-      <span className="task-block__time-badge">{formatEstimate(ctx.task.estimatedMinutes, isPending)}</span>
+      <div className="task-block__top">
+        <span className="task-block__status task-block__status--queued">拖拽中</span>
+        <span className="task-block__time-badge">
+          {formatEstimate(ctx.task.estimatedMinutes, isPending)}
+        </span>
+      </div>
       <div className="task-block__title">{ctx.task.title}</div>
-      <div className="task-block__meta">{meta}</div>
+      {meta && <div className="task-block__meta">{meta}</div>}
     </div>
   );
 }
