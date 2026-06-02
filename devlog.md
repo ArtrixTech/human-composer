@@ -112,4 +112,4 @@
 - **紧凑布局**：卡片 88→68px、section-gap 24→12、lane-gap 16→10；TaskBlock 改为 dot+单行标题+时间 / meta 两行
 - **悬浮窗**：快速添加任务不再依赖 `backlog` 取 projectId
 
-**Commit:** `60bc8f8` (backend), (frontend pending)
+**Commit:** `60bc8f8` (backend), `c3fa3e3` (frontend)
