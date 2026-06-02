@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import type { TaskDependency, TodayTaskContext } from "../../types";
 import { buildBlockerMap, hasDependencyEdge } from "./dependencyUtils";
 import { DependencyConnector } from "./DependencyConnector";
@@ -16,25 +18,49 @@ export function LaneTrack({
   isWatch: boolean;
   dependencies?: TaskDependency[];
 }) {
-  // First claimable ready slot: skip external-active tasks that occupy the active slot
+  const trackRef = useRef<HTMLDivElement>(null);
+
   const firstReadyIdx = tasks.findIndex(
     (t) => t.task.status === "ready" && !isExternalActive(t),
   );
   const tasksById = new Map(tasks.map((t) => [t.task.id, t]));
   const blockerMap = buildBlockerMap(dependencies, tasksById);
 
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const cards = Array.from(el.querySelectorAll<HTMLElement>(".task-card"));
+      if (cards.length === 0) return;
+
+      const active = document.activeElement;
+      const idx = cards.findIndex((c) => c.contains(active) || c === active);
+      const next =
+        e.key === "ArrowRight"
+          ? Math.min(cards.length - 1, idx < 0 ? 0 : idx + 1)
+          : Math.max(0, idx <= 0 ? 0 : idx - 1);
+
+      if (next !== idx) {
+        e.preventDefault();
+        cards[next].focus();
+        cards[next].scrollIntoView({ inline: "nearest", block: "nearest" });
+      }
+    };
+
+    el.addEventListener("keydown", onKeyDown);
+    return () => el.removeEventListener("keydown", onKeyDown);
+  }, [tasks.length]);
+
   return (
-    <div className="lane-track">
+    <div className="lane-track" ref={trackRef} role="list">
       {tasks.map((ctx, idx) => {
-        // Route to ExternalTaskBlock only when the task itself is external,
-        // not based on the lane type — so normal tasks dragged into a watch lane
-        // still render with claim/complete controls.
         const isExternal = isExternalActive(ctx);
         const isPending = ctx.task.status === "pending";
         const prevTask = idx > 0 ? tasks[idx - 1] : null;
         const showConnector =
-          prevTask != null &&
-          hasDependencyEdge(dependencies, prevTask.task.id, ctx.task.id);
+          prevTask != null && hasDependencyEdge(dependencies, prevTask.task.id, ctx.task.id);
 
         const block = isExternal ? (
           <ExternalTaskBlock key={ctx.task.id} ctx={ctx} laneId={laneId} />
@@ -52,7 +78,7 @@ export function LaneTrack({
         );
 
         return (
-          <div key={ctx.task.id} className="lane-track__item">
+          <div key={ctx.task.id} className="lane-track__item" role="listitem">
             {idx > 0 && <DependencyConnector visible={showConnector} />}
             {block}
           </div>

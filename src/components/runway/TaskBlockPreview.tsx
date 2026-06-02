@@ -1,5 +1,6 @@
 import type { TodayTaskContext } from "../../types";
-import { blockWidth, formatEstimate } from "./taskBlockUtils";
+import { cardWidth, formatEstimate } from "./taskBlockUtils";
+import { TaskCardStatus } from "./TaskCardStatus";
 
 export function TaskBlockPreview({
   ctx,
@@ -9,20 +10,21 @@ export function TaskBlockPreview({
   isPending?: boolean;
 }) {
   const meta = [ctx.projectName, ctx.branchName].filter(Boolean).join(" · ");
+  const kind = isPending ? "pending" : "queued";
 
   return (
     <div
-      className={`task-block task-block--dragging${isPending ? " task-block--pending" : ""}`}
-      style={{ width: blockWidth(ctx.task.estimatedMinutes) }}
+      className={`task-card task-card--dragging task-card--${kind}`}
+      style={{ width: cardWidth() }}
     >
-      <div className="task-block__top">
-        <span className="task-block__status task-block__status--queued">拖拽中</span>
-        <span className="task-block__time-badge">
-          {formatEstimate(ctx.task.estimatedMinutes, isPending)}
-        </span>
+      <div className="task-card__content">
+        <div className="task-card__row-top">
+          <TaskCardStatus kind={kind} />
+          <span className="task-card__title">{ctx.task.title}</span>
+          <span className="task-card__time">{formatEstimate(ctx.task.estimatedMinutes, isPending)}</span>
+        </div>
+        {meta ? <div className="task-card__meta">{meta}</div> : null}
       </div>
-      <div className="task-block__title">{ctx.task.title}</div>
-      {meta && <div className="task-block__meta">{meta}</div>}
     </div>
   );
 }

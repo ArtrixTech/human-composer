@@ -126,15 +126,6 @@ export function CommandPalette() {
             });
         });
       });
-      runwaySnapshot?.backlog.forEach((t) => {
-        if (!q || t.task.title.toLowerCase().includes(q))
-          items.push({
-            id: `backlog-${t.task.id}`,
-            label: `${t.task.title} (待分配)`,
-            group: "待分配",
-            action: () => {},
-          });
-      });
       graph?.tasks.forEach((t) => {
         if (!q || t.title.toLowerCase().includes(q))
           items.push({

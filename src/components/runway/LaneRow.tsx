@@ -1,12 +1,10 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
-import { ChevronDown, Hourglass, Pencil, Target, X } from "lucide-react";
+import { ChevronDown, Pencil, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { DayLaneSnapshot, TaskDependency } from "../../types";
 import { useAppStore } from "../../store/appStore";
-import { formatMinutesTotal } from "./taskBlockUtils";
-import { LaneTimeline } from "./LaneTimeline";
 import { LaneTrack } from "./LaneTrack";
 
 const VISIBLE_CAP = 7;
@@ -43,10 +41,6 @@ export function LaneRow({
       ? laneSnapshot.tasks
       : laneSnapshot.tasks.slice(0, VISIBLE_CAP);
 
-  const pendingMinutes = laneSnapshot.tasks
-    .filter((t) => t.task.status === "pending")
-    .reduce((sum, t) => sum + (t.task.estimatedMinutes ?? 30), 0);
-
   const onRename = () => {
     if (name.trim() && name !== laneSnapshot.lane.name) {
       void renameLane(laneSnapshot.lane.id, name.trim());
@@ -62,102 +56,82 @@ export function LaneRow({
     setConfirmClose(true);
   };
 
-  const LaneIcon = isWatch ? Hourglass : Target;
+  const stats = [
+    `${laneSnapshot.completedCount}/${laneSnapshot.totalCount}`,
+    laneSnapshot.estimatedFinishTime ? `~${laneSnapshot.estimatedFinishTime}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div
+    <section
       ref={setNodeRef}
-      className={`lane-row lane-row--${laneSnapshot.lane.laneType}${isOver ? " lane-row--over" : ""}`}
+      className={`lane-section lane-section--${laneSnapshot.lane.laneType}${isOver ? " lane-section--over" : ""}`}
     >
-      <div className="lane-row__header">
-        <div className="lane-row__identity">
-          <span className={`lane-row__icon lane-row__icon--${laneSnapshot.lane.laneType}`}>
-            <LaneIcon size={14} />
-          </span>
-          {editing ? (
-            <input
-              className="lane-row__name-input"
-              value={name}
-              autoFocus
-              onChange={(e) => setName(e.target.value)}
-              onBlur={onRename}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onRename();
-                if (e.key === "Escape") {
-                  setName(laneSnapshot.lane.name);
-                  setEditing(false);
-                }
-              }}
-            />
-          ) : (
-            <div className="lane-row__name-wrap">
-              <button
-                type="button"
-                className="lane-row__name"
-                onDoubleClick={() => setEditing(true)}
-              >
-                {laneSnapshot.lane.name}
-              </button>
-              <button
-                type="button"
-                className="lane-row__rename"
-                aria-label="重命名泳道"
-                onClick={() => setEditing(true)}
-              >
-                <Pencil size={11} />
-              </button>
-            </div>
-          )}
-          <span className="lane-row__type">
-            {isWatch ? "等待" : "专注"}
-          </span>
-        </div>
+      <div className="lane-section__header">
+        {editing ? (
+          <input
+            className="lane-section__name-input"
+            value={name}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+            onBlur={onRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onRename();
+              if (e.key === "Escape") {
+                setName(laneSnapshot.lane.name);
+                setEditing(false);
+              }
+            }}
+          />
+        ) : (
+          <div className="lane-section__name-wrap">
+            <button
+              type="button"
+              className="lane-section__name"
+              onDoubleClick={() => setEditing(true)}
+            >
+              {laneSnapshot.lane.name}
+            </button>
+            {needsReview && <span className="lane-section__review-dot" title="待审核" />}
+            <button
+              type="button"
+              className="lane-section__rename"
+              aria-label="重命名泳道"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil size={11} />
+            </button>
+          </div>
+        )}
 
-        <div className="lane-row__stats">
-          {needsReview && <span className="lane-row__badge">待审核</span>}
-          <span className="lane-row__progress">
-            {laneSnapshot.completedCount}/{laneSnapshot.totalCount}
-          </span>
-          {pendingMinutes > 0 && (
-            <span className="lane-row__pending-est">
-              待解锁 {formatMinutesTotal(pendingMinutes)}
-            </span>
-          )}
-          {laneSnapshot.estimatedFinishTime && (
-            <span className="lane-row__finish">~{laneSnapshot.estimatedFinishTime}</span>
-          )}
-        </div>
+        <span className="lane-section__stats">{stats}</span>
 
-        <div className="lane-row__actions">
+        <div className="lane-section__actions">
           <button
             type="button"
-            className="lane-row__collapse"
+            className="lane-section__collapse"
             onClick={() => setCollapsed(!collapsed)}
             aria-label={collapsed ? "展开" : "折叠"}
             aria-expanded={!collapsed}
           >
-            <ChevronDown size={14} className={collapsed ? "lane-row__chevron--collapsed" : ""} />
+            <ChevronDown size={14} className={collapsed ? "lane-section__chevron--collapsed" : ""} />
           </button>
-          <button
-            type="button"
-            className="lane-row__close"
-            onClick={onClose}
-            aria-label="关闭泳道"
-          >
+          <button type="button" className="lane-section__close" onClick={onClose} aria-label="关闭泳道">
             <X size={14} />
           </button>
         </div>
       </div>
 
       {confirmClose && (
-        <div className="lane-row__confirm">
-          <span>确认关闭？任务将回到待分配</span>
+        <div className="lane-section__confirm">
+          <span>确认关闭？任务将合并到其他泳道</span>
           <button type="button" onClick={() => setConfirmClose(false)}>
             取消
           </button>
           <button
             type="button"
-            className="lane-row__confirm-yes"
+            className="lane-section__confirm-yes"
             onClick={() => {
               setConfirmClose(false);
               void closeLane(laneSnapshot.lane.id);
@@ -168,31 +142,24 @@ export function LaneRow({
         </div>
       )}
 
-      <div className={`lane-row__body${collapsed ? " lane-row__body--collapsed" : ""}`}>
-        <div className="lane-row__track-wrap">
-          <SortableContext
-            items={displayTasks.map((t) => t.task.id)}
-            strategy={horizontalListSortingStrategy}
-          >
-            <LaneTrack
-              laneId={laneSnapshot.lane.id}
-              tasks={displayTasks}
-              isWatch={isWatch}
-              dependencies={dependencies}
-            />
-          </SortableContext>
-          <LaneTimeline tasks={displayTasks} />
-        </div>
+      <div className={`lane-section__body${collapsed ? " lane-section__body--collapsed" : ""}`}>
+        <SortableContext
+          items={displayTasks.map((t) => t.task.id)}
+          strategy={horizontalListSortingStrategy}
+        >
+          <LaneTrack
+            laneId={laneSnapshot.lane.id}
+            tasks={displayTasks}
+            isWatch={isWatch}
+            dependencies={dependencies}
+          />
+        </SortableContext>
         {!collapsed && hiddenCount > 0 && !showAllTasks && (
-          <button
-            type="button"
-            className="lane-row__more"
-            onClick={() => setShowAllTasks(true)}
-          >
+          <button type="button" className="lane-section__more" onClick={() => setShowAllTasks(true)}>
             +{hiddenCount} 项
           </button>
         )}
       </div>
-    </div>
+    </section>
   );
 }

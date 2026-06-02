@@ -283,7 +283,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   closeLane: async (laneId) => {
     await api.closeDayLane(laneId);
     await get().refreshRunway();
-    useToastStore.getState().push({ message: "泳道已关闭，任务已回到待分配池" });
+    useToastStore.getState().push({ message: "泳道已关闭，任务已合并到其他泳道" });
   },
 
   renameLane: async (laneId, name) => {

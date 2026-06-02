@@ -103,3 +103,13 @@
 - 新增 `runwayTaskUtils.ts`、`ExternalTaskDialog.tsx`、`LaneTimeline.tsx`
 
 **Commit:** `56dad85` (backend), `df53913` (frontend)
+
+## 2026-06-02 — 消灭「待分配」+ DayRunway 紧凑化
+
+- **后端**：`populate_lane_with_actionable_tasks` 末尾追加全部未分配 Ready/Pending；`close_day_lane` 关闭前将任务合并到剩余泳道（无泳道则新建「主线」）；`sync_day_runway` 每次同步把孤儿 Ready/Pending 塞入默认泳道
+- **前端**：删除 `BacklogPool.tsx`、`NowStrip.tsx` 及 backlog DnD 路径；清理「待分配」文案（LaneRow、LanesContainer、CommandPalette、toast）
+- **单行工具栏**：`RunwayHeader` 合并原 NowStrip（当前任务 + CTA）、时间预算、已完成计数；`FocusHealthIndicator` 仅在 ≥3 专注泳道时显示「高负荷」
+- **紧凑布局**：卡片 88→68px、section-gap 24→12、lane-gap 16→10；TaskBlock 改为 dot+单行标题+时间 / meta 两行
+- **悬浮窗**：快速添加任务不再依赖 `backlog` 取 projectId
+
+**Commit:** `60bc8f8` (backend), (frontend pending)

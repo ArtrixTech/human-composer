@@ -42,6 +42,23 @@
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 52px;
   --window-radius: 12px;
+
+  /* Runway layout scale */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --card-width: 180px;
+  --card-height: 68px;
+  --card-gap: 6px;
+  --section-gap: 12px;
+  --lane-gap: 10px;
+
+  /* Runway surfaces */
+  --surface-card: var(--bg-elevated);
+  --surface-card-hover: var(--bg-hover);
+  --surface-card-active: rgba(59, 130, 246, 0.08);
+  --lane-focus-accent: var(--accent);
+  --lane-watch-accent: var(--status-external);
 }
 
 * {

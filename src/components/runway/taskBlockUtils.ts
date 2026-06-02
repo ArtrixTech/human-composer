@@ -1,6 +1,13 @@
-export function blockWidth(minutes: number | null): number {
-  const m = minutes ?? 30;
-  return Math.max(100, Math.min(320, 100 + (m - 15) * 2));
+export const CARD_WIDTH = 180;
+export const CARD_HEIGHT = 68;
+
+export function cardWidth(): number {
+  return CARD_WIDTH;
+}
+
+/** @deprecated Use cardWidth() — fixed card width, no estimate-based sizing */
+export function blockWidth(_minutes: number | null): number {
+  return CARD_WIDTH;
 }
 
 export function formatEstimate(minutes: number | null, pending = false): string {

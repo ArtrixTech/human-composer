@@ -14,11 +14,7 @@ import { useState } from "react";
 import type { DayLaneSnapshot, TodayTaskContext } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { AddLaneDialog } from "./AddLaneDialog";
-import { BacklogPool } from "./BacklogPool";
-import { CarryOverBanner } from "./CarryOverBanner";
-import { CompletedBar } from "./CompletedBar";
 import { LanesContainer } from "./LanesContainer";
-import { NowStrip } from "./NowStrip";
 import { RunwayHeader } from "./RunwayHeader";
 import { TaskBlockPreview } from "./TaskBlockPreview";
 
@@ -29,8 +25,6 @@ export function DayRunway() {
   const setAddLaneOpen = useAppStore((s) => s.setAddLaneOpen);
   const createProject = useAppStore((s) => s.createProject);
   const moveBetweenLanes = useAppStore((s) => s.moveBetweenLanes);
-  const assignToLane = useAppStore((s) => s.assignToLane);
-  const removeFromLane = useAppStore((s) => s.removeFromLane);
   const reorderLaneTasks = useAppStore((s) => s.reorderLaneTasks);
 
   const [dragging, setDragging] = useState<TodayTaskContext | null>(null);
@@ -41,7 +35,6 @@ export function DayRunway() {
     const data = event.active.data.current as {
       task: TodayTaskContext;
       laneId?: string;
-      backlog?: boolean;
     };
     setDragging(data.task);
   };
@@ -54,26 +47,15 @@ export function DayRunway() {
     const taskData = active.data.current as {
       task: TodayTaskContext;
       laneId?: string;
-      backlog?: boolean;
     };
     const overData = over.data.current as {
       laneId?: string;
-      backlog?: boolean;
       taskId?: string;
     };
 
     const taskId = taskData.task.task.id;
 
-    if (overData.backlog && taskData.laneId) {
-      void removeFromLane(taskId, taskData.laneId);
-      return;
-    }
-
     if (overData.laneId) {
-      if (taskData.backlog) {
-        void assignToLane(taskId, overData.laneId);
-        return;
-      }
       if (taskData.laneId && taskData.laneId !== overData.laneId) {
         void moveBetweenLanes(taskId, taskData.laneId, overData.laneId);
         return;
@@ -120,16 +102,10 @@ export function DayRunway() {
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <div className="day-runway">
         <RunwayHeader snapshot={runwaySnapshot} onAddLane={() => setAddLaneOpen(true)} />
-        <NowStrip snapshot={runwaySnapshot} />
-        {runwaySnapshot.carryOverCount > 0 && (
-          <CarryOverBanner count={runwaySnapshot.carryOverCount} />
-        )}
         <LanesContainer
           lanes={runwaySnapshot.lanes as DayLaneSnapshot[]}
           dependencies={runwaySnapshot.dependencies ?? []}
         />
-        <BacklogPool items={runwaySnapshot.backlog} />
-        <CompletedBar completed={runwaySnapshot.completedToday} />
       </div>
       <DragOverlay>
         {dragging ? (
