@@ -102,4 +102,4 @@
 - **三层交互面**：Tray / 悬浮窗按任务类型路由「完成 / 标记完成 / 审核」；委派成功 toast 引导继续领取
 - 新增 `runwayTaskUtils.ts`、`ExternalTaskDialog.tsx`、`LaneTimeline.tsx`
 
-**Commit:** (pending)
+**Commit:** `56dad85` (backend), `df53913` (frontend)
