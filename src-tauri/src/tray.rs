@@ -5,6 +5,8 @@ use tauri::{
 };
 
 use crate::commands::AppState;
+use crate::models::{DayRunwaySnapshot, ExternalStatus, TaskStatus};
+use crate::runway::is_focus_active;
 
 enum MenuEntry {
     Item(usize),
@@ -35,8 +37,12 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                 }
             } else if let Some(task_id) = id.strip_prefix("complete:") {
                 handle_tray_task_action(app, task_id, true);
-            } else if let Some(task_id) = id.strip_prefix("activate:") {
-                handle_tray_task_action(app, task_id, false);
+            } else if let Some(task_id) = id.strip_prefix("complete-ext:") {
+                handle_tray_complete_external(app, task_id);
+            } else if let Some(rest) = id.strip_prefix("claim:") {
+                if let Some((task_id, lane_id)) = rest.split_once(':') {
+                    handle_tray_claim(app, task_id, lane_id);
+                }
             }
         })
         .build(app)?;
@@ -74,22 +80,59 @@ fn handle_tray_task_action(app: &AppHandle, task_id: &str, complete: bool) {
     let _ = refresh_tray_menu(app);
 }
 
+fn handle_tray_complete_external(app: &AppHandle, task_id: &str) {
+    let project_id = {
+        let state = app.state::<AppState>();
+        let db = match state.db.lock() {
+            Ok(db) => db,
+            Err(_) => return,
+        };
+        let project_id = match db.project_id_for_task(task_id) {
+            Ok(id) => id,
+            Err(_) => return,
+        };
+        let _ = db.complete_external_task(task_id);
+        project_id
+    };
+    emit_snapshots(app, &project_id);
+    let _ = refresh_tray_menu(app);
+}
+
+fn handle_tray_claim(app: &AppHandle, task_id: &str, lane_id: &str) {
+    let project_id = {
+        let state = app.state::<AppState>();
+        let db = match state.db.lock() {
+            Ok(db) => db,
+            Err(_) => return,
+        };
+        let project_id = match db.project_id_for_task(task_id) {
+            Ok(id) => id,
+            Err(_) => return,
+        };
+        let _ = db.claim_task(task_id, lane_id);
+        project_id
+    };
+    emit_snapshots(app, &project_id);
+    let _ = refresh_tray_menu(app);
+}
+
 fn emit_snapshots(app: &AppHandle, project_id: &str) {
-    let (app_snapshot, today) = {
+    let (app_snapshot, runway) = {
         let state = app.state::<AppState>();
         let db = match state.db.lock() {
             Ok(db) => db,
             Err(_) => return,
         };
         let app_snapshot = db.build_app_snapshot(project_id).ok();
-        let today = db.build_today_snapshot().ok();
-        (app_snapshot, today)
+        let runway = db.build_day_runway_snapshot().ok();
+        (app_snapshot, runway)
     };
     if let Some(snapshot) = app_snapshot {
         let _ = app.emit("graph-updated", snapshot);
     }
-    if let Some(today) = today {
-        let _ = app.emit("today-updated", today);
+    if let Some(runway) = runway {
+        let _ = app.emit("runway-updated", &runway);
+        let _ = app.emit("today-updated", &runway);
     }
 }
 
@@ -97,9 +140,13 @@ pub fn refresh_tray_menu(app: &AppHandle) -> Result<(), String> {
     let snapshot = {
         let state = app.state::<AppState>();
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.build_today_snapshot().map_err(|e| e.to_string())?
+        db.build_day_runway_snapshot().map_err(|e| e.to_string())?
     };
 
+    build_tray_menu(app, &snapshot)
+}
+
+fn build_tray_menu(app: &AppHandle, snapshot: &DayRunwaySnapshot) -> Result<(), String> {
     let Some(tray) = app.tray_by_id("main-tray") else {
         return Ok(());
     };
@@ -108,30 +155,84 @@ pub fn refresh_tray_menu(app: &AppHandle) -> Result<(), String> {
     let mut separators: Vec<PredefinedMenuItem<tauri::Wry>> = Vec::new();
     let mut structure: Vec<MenuEntry> = Vec::new();
 
-    if let Some(active) = &snapshot.active_task {
-        owned_items.push(
-            MenuItem::with_id(
-                app,
-                "current",
-                format!("正在: {}", active.task.title),
-                false,
-                None::<&str>,
-            )
-            .map_err(|e| e.to_string())?,
-        );
-        structure.push(MenuEntry::Item(owned_items.len() - 1));
-        owned_items.push(
-            MenuItem::with_id(
-                app,
-                format!("complete:{}", active.task.id),
-                "完成当前任务",
-                true,
-                None::<&str>,
-            )
-            .map_err(|e| e.to_string())?,
-        );
-        structure.push(MenuEntry::Item(owned_items.len() - 1));
-    } else {
+    let mut has_active = false;
+    for lane in &snapshot.lanes {
+        // Show focus-active tasks with a "完成" action
+        if let Some(focus_task) = lane.tasks.iter().find(|t| is_focus_active(&t.task)) {
+            has_active = true;
+            owned_items.push(
+                MenuItem::with_id(
+                    app,
+                    format!("lane-{}", lane.lane.id),
+                    format!("🎯 {}: {}", lane.lane.name, focus_task.task.title),
+                    false,
+                    None::<&str>,
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            structure.push(MenuEntry::Item(owned_items.len() - 1));
+            owned_items.push(
+                MenuItem::with_id(
+                    app,
+                    format!("complete:{}", focus_task.task.id),
+                    format!("完成「{}」", focus_task.task.title),
+                    true,
+                    None::<&str>,
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            structure.push(MenuEntry::Item(owned_items.len() - 1));
+        }
+
+        // Show external delegated tasks with "标记完成" (routes to completeExternal, not completeTask)
+        for ext_task in lane.tasks.iter().filter(|t| {
+            t.task.status == TaskStatus::Active
+                && t.task.external_status == Some(ExternalStatus::Delegated)
+        }) {
+            has_active = true;
+            owned_items.push(
+                MenuItem::with_id(
+                    app,
+                    format!("ext-{}", ext_task.task.id),
+                    format!("⏳ {}: {}", lane.lane.name, ext_task.task.title),
+                    false,
+                    None::<&str>,
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            structure.push(MenuEntry::Item(owned_items.len() - 1));
+            owned_items.push(
+                MenuItem::with_id(
+                    app,
+                    format!("complete-ext:{}", ext_task.task.id),
+                    format!("标记完成「{}」", ext_task.task.title),
+                    true,
+                    None::<&str>,
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            structure.push(MenuEntry::Item(owned_items.len() - 1));
+        }
+
+        // Show needs-review tasks as non-actionable reminders (open app to review)
+        for rev_task in lane.tasks.iter().filter(|t| {
+            t.task.external_status == Some(ExternalStatus::NeedsReview)
+        }) {
+            owned_items.push(
+                MenuItem::with_id(
+                    app,
+                    format!("review-{}", rev_task.task.id),
+                    format!("🔔 待审核: {}", rev_task.task.title),
+                    false,
+                    None::<&str>,
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            structure.push(MenuEntry::Item(owned_items.len() - 1));
+        }
+    }
+
+    if !has_active {
         owned_items.push(
             MenuItem::with_id(app, "idle", "暂无进行中的任务", false, None::<&str>)
                 .map_err(|e| e.to_string())?,
@@ -144,22 +245,24 @@ pub fn refresh_tray_menu(app: &AppHandle) -> Result<(), String> {
 
     if !snapshot.recommendations.is_empty() {
         owned_items.push(
-            MenuItem::with_id(app, "rec-header", "推荐下一个:", false, None::<&str>)
+            MenuItem::with_id(app, "rec-header", "推荐领取:", false, None::<&str>)
                 .map_err(|e| e.to_string())?,
         );
         structure.push(MenuEntry::Item(owned_items.len() - 1));
         for rec in snapshot.recommendations.iter().take(5) {
-            owned_items.push(
-                MenuItem::with_id(
-                    app,
-                    format!("activate:{}", rec.task.id),
-                    rec.task.title.clone(),
-                    true,
-                    None::<&str>,
-                )
-                .map_err(|e| e.to_string())?,
-            );
-            structure.push(MenuEntry::Item(owned_items.len() - 1));
+            if let Some(lane) = snapshot.lanes.first() {
+                owned_items.push(
+                    MenuItem::with_id(
+                        app,
+                        format!("claim:{}:{}", rec.task.id, lane.lane.id),
+                        rec.task.title.clone(),
+                        true,
+                        None::<&str>,
+                    )
+                    .map_err(|e| e.to_string())?,
+                );
+                structure.push(MenuEntry::Item(owned_items.len() - 1));
+            }
         }
         separators.push(PredefinedMenuItem::separator(app).map_err(|e| e.to_string())?);
         structure.push(MenuEntry::Sep(separators.len() - 1));
@@ -194,12 +297,28 @@ pub fn refresh_tray_menu(app: &AppHandle) -> Result<(), String> {
     let menu = Menu::with_items(app, &refs).map_err(|e| e.to_string())?;
     tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
 
-    let tooltip = snapshot
-        .active_task
-        .as_ref()
-        .map(|t| t.task.title.clone())
-        .unwrap_or_else(|| "Human Composer".to_string());
+    let focus_active_count = snapshot
+        .lanes
+        .iter()
+        .filter(|l| l.tasks.iter().any(|t| is_focus_active(&t.task)))
+        .count();
+
+    let review_count = snapshot
+        .lanes
+        .iter()
+        .flat_map(|l| l.tasks.iter())
+        .filter(|t| t.task.external_status == Some(ExternalStatus::NeedsReview))
+        .count();
+
+    let tooltip = if review_count > 0 {
+        format!("{review_count} 项待审核")
+    } else if focus_active_count > 0 {
+        format!("{focus_active_count} 泳道专注中")
+    } else {
+        "Human Composer".to_string()
+    };
     tray.set_tooltip(Some(&tooltip)).ok();
+
 
     Ok(())
 }

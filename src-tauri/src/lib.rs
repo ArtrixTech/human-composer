@@ -7,6 +7,7 @@ mod sources;
 mod today;
 mod tray;
 mod undo;
+mod runway;
 
 use std::sync::Mutex;
 
@@ -96,7 +97,7 @@ pub fn run() {
                 });
             });
             let handle2 = app.handle().clone();
-            app.handle().listen("today-updated", move |_event| {
+            app.handle().listen("runway-updated", move |_event| {
                 let handle = handle2.clone();
                 tauri::async_runtime::spawn(async move {
                     let _ = tray::refresh_tray_menu(&handle);
@@ -112,6 +113,20 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_today_snapshot,
+            commands::get_day_runway_snapshot,
+            commands::auto_populate_runway,
+            commands::create_day_lane,
+            commands::close_day_lane,
+            commands::rename_day_lane,
+            commands::reorder_day_lanes,
+            commands::assign_task_to_lane,
+            commands::remove_task_from_lane,
+            commands::reorder_lane_tasks,
+            commands::move_task_between_lanes,
+            commands::claim_task,
+            commands::start_external_task,
+            commands::complete_external_task,
+            commands::review_external_task,
             commands::set_task_estimated_minutes,
             commands::rename_branch,
             commands::list_archived_branches,

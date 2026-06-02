@@ -5,10 +5,11 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::auto_assign::suggest_branch;
 use crate::db::Database;
 use crate::models::{
-    AppSnapshot, Branch, BranchSuggestion, CompleteTaskResult, CreateTaskResult, ProjectGraph,
-    ProjectSummary, Task, TaskStatus, TodaySnapshot,
+    AppSnapshot, Branch, BranchSuggestion, CompleteTaskResult, CreateTaskResult, DayLane,
+    DayLaneType, DayRunwaySnapshot, ProjectGraph, ProjectSummary, Task, TaskStatus, TodaySnapshot,
 };
 use crate::undo::{UndoAction, UndoStack};
+use crate::runway::local_date_string;
 
 pub struct AppState {
     pub db: Mutex<Database>,
@@ -32,23 +33,25 @@ fn active_project_id(db: &Database) -> Result<String, String> {
 /// Build snapshot and emit **after** releasing the DB lock to avoid deadlocks
 /// with tray refresh / other commands listening on `graph-updated`.
 fn emit_snapshot(app: &AppHandle, state: &State<'_, AppState>, project_id: &str) -> Result<(), String> {
-    let (snapshot, today) = {
+    let (snapshot, runway) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let snapshot = db.build_app_snapshot(project_id).map_err(|e| e.to_string())?;
-        let today = db.build_today_snapshot().map_err(|e| e.to_string())?;
-        (snapshot, today)
+        let runway = db.build_day_runway_snapshot().map_err(|e| e.to_string())?;
+        (snapshot, runway)
     };
     let _ = app.emit("graph-updated", &snapshot);
-    let _ = app.emit("today-updated", &today);
+    let _ = app.emit("runway-updated", &runway);
+    let _ = app.emit("today-updated", &runway);
     Ok(())
 }
 
-fn emit_today_only(app: &AppHandle, state: &State<'_, AppState>) -> Result<(), String> {
-    let today = {
+fn emit_runway_only(app: &AppHandle, state: &State<'_, AppState>) -> Result<(), String> {
+    let runway = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.build_today_snapshot().map_err(|e| e.to_string())?
+        db.build_day_runway_snapshot().map_err(|e| e.to_string())?
     };
-    let _ = app.emit("today-updated", &today);
+    let _ = app.emit("runway-updated", &runway);
+    let _ = app.emit("today-updated", &runway);
     Ok(())
 }
 
@@ -60,6 +63,238 @@ pub fn get_today_snapshot(state: State<'_, AppState>) -> Result<TodaySnapshot, S
         .map_err(|e| e.to_string())?
         .build_today_snapshot()
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_day_runway_snapshot(state: State<'_, AppState>) -> Result<DayRunwaySnapshot, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .build_day_runway_snapshot()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn auto_populate_runway(state: State<'_, AppState>, date: Option<String>) -> Result<(), String> {
+    let date = date.unwrap_or_else(local_date_string);
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.auto_populate_runway(&date).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn create_day_lane(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    date: Option<String>,
+    name: String,
+    lane_type: String,
+) -> Result<DayLane, String> {
+    let date = date.unwrap_or_else(local_date_string);
+    let lt = DayLaneType::from_str(&lane_type);
+    let lane = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.create_day_lane(&date, &name, lt).map_err(|e| e.to_string())?
+    };
+    emit_runway_only(&app, &state)?;
+    Ok(lane)
+}
+
+#[tauri::command]
+pub fn close_day_lane(app: AppHandle, state: State<'_, AppState>, lane_id: String) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.close_day_lane(&lane_id).map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn rename_day_lane(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    lane_id: String,
+    name: String,
+) -> Result<DayLane, String> {
+    let lane = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.rename_day_lane(&lane_id, &name).map_err(|e| e.to_string())?
+    };
+    emit_runway_only(&app, &state)?;
+    Ok(lane)
+}
+
+#[tauri::command]
+pub fn reorder_day_lanes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    date: Option<String>,
+    lane_ids: Vec<String>,
+) -> Result<(), String> {
+    let date = date.unwrap_or_else(local_date_string);
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_day_lanes(&date, &lane_ids).map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn assign_task_to_lane(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    lane_id: String,
+    position: Option<i32>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.assign_task_to_lane(&task_id, &lane_id, position)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn remove_task_from_lane(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    lane_id: String,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.remove_task_from_lane(&task_id, &lane_id)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn reorder_lane_tasks(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    lane_id: String,
+    task_ids: Vec<String>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_lane_tasks(&lane_id, &task_ids)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn move_task_between_lanes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    from_lane_id: String,
+    to_lane_id: String,
+    position: Option<i32>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.move_task_between_lanes(&task_id, &from_lane_id, &to_lane_id, position)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn claim_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    lane_id: String,
+    project_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.claim_task(&task_id, &lane_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn start_external_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    project_id: String,
+    lane_id: Option<String>,
+    estimated_minutes: i32,
+    note: Option<String>,
+) -> Result<Task, String> {
+    let date = local_date_string();
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        // Resolve source lane and always land on a watch lane
+        let source_lane = lane_id.as_deref().and_then(|lid| db.get_day_lane(lid).ok());
+        match source_lane {
+            Some(ref lane) if lane.lane_type == DayLaneType::Watch => {
+                // Already in a watch lane — ensure assignment (idempotent)
+                db.assign_task_to_lane(&task_id, &lane.id, None).ok();
+            }
+            Some(ref focus_lane) => {
+                // Source is a focus lane — move task to the shared watch lane
+                let watch = db
+                    .find_or_create_watch_lane(&date, "等待外部")
+                    .map_err(|e| e.to_string())?;
+                db.move_task_between_lanes(&task_id, &focus_lane.id, &watch.id, None)
+                    .map_err(|e| e.to_string())?;
+            }
+            None => {
+                // No source lane (backlog / task not in any lane) — assign to watch lane
+                let watch = db
+                    .find_or_create_watch_lane(&date, "等待外部")
+                    .map_err(|e| e.to_string())?;
+                db.assign_task_to_lane(&task_id, &watch.id, None)
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        db.start_external_task(&task_id, estimated_minutes, note.as_deref())
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn complete_external_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    project_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.complete_external_task(&task_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn review_external_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    project_id: String,
+    action: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.review_external_task(&task_id, &action)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
 }
 
 #[tauri::command]
@@ -140,7 +375,7 @@ pub fn delete_project(
     if let Some(pid) = fallback {
         emit_snapshot(&app, &state, &pid)?;
     } else {
-        emit_today_only(&app, &state)?;
+        emit_runway_only(&app, &state)?;
     }
     Ok(())
 }

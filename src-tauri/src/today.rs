@@ -173,7 +173,7 @@ fn build_schedule(
     items
 }
 
-fn minutes_until_day_end(day_end_time: &str) -> i32 {
+pub fn minutes_until_day_end(day_end_time: &str) -> i32 {
     let end = parse_time(day_end_time).unwrap_or_else(|| NaiveTime::from_hms_opt(22, 0, 0).unwrap());
     let now = Local::now().time();
     let now_mins = now.hour() as i32 * 60 + now.minute() as i32;
@@ -204,11 +204,11 @@ fn parse_time(s: &str) -> Option<NaiveTime> {
     NaiveTime::from_hms_opt(h, m, 0)
 }
 
-fn format_time(t: NaiveTime) -> String {
+pub fn format_time(t: NaiveTime) -> String {
     format!("{:02}:{:02}", t.hour(), t.minute())
 }
 
-fn add_minutes_to_time(t: NaiveTime, minutes: i32) -> NaiveTime {
+pub fn add_minutes_to_time(t: NaiveTime, minutes: i32) -> NaiveTime {
     let total = t.hour() as i32 * 60 + t.minute() as i32 + minutes;
     let h = ((total / 60) % 24).max(0) as u32;
     let m = (total % 60).max(0) as u32;

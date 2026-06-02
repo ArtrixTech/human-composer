@@ -543,7 +543,8 @@ impl Database {
         for other_id in lane_task_ids {
             if other_id != task_id {
                 let task = self.get_task(&other_id)?;
-                if task.status == TaskStatus::Active {
+                // Do not pause externally-delegated or needs-review tasks; they run independently
+                if task.status == TaskStatus::Active && !runway::is_external_active(&task) {
                     self.set_task_status(&other_id, TaskStatus::Ready)?;
                 }
             }
@@ -1277,8 +1278,9 @@ impl Database {
             self.recalculate_project_statuses(&project_id)?;
         } else {
             self.conn.execute(
-                "UPDATE tasks SET external_status = NULL, external_started_at = NULL,
-                 external_completed_at = NULL, status = 'ready' WHERE id = ?1",
+                "UPDATE tasks SET task_type = 'normal', external_status = NULL,
+                 external_started_at = NULL, external_completed_at = NULL,
+                 status = 'ready' WHERE id = ?1",
                 params![task_id],
             )?;
         }

@@ -141,9 +141,11 @@ pub fn build_day_runway_snapshot(input: RunwayBuildInput<'_>) -> DayRunwaySnapsh
             .map(wrap_context)
             .collect();
 
+        // Only track focus-active tasks in active_task_id; external delegated/review tasks
+        // run independently and should not occupy the focus slot.
         let active_task_id = lane_tasks
             .iter()
-            .find(|t| t.task.status == TaskStatus::Active)
+            .find(|t| is_focus_active(&t.task))
             .map(|t| t.task.id.clone());
 
         let completed_in_lane = input
@@ -209,10 +211,11 @@ pub fn build_day_runway_snapshot(input: RunwayBuildInput<'_>) -> DayRunwaySnapsh
         None
     };
 
-    let focus_lane_count = input
-        .lanes
+    // Count focus lanes that have an actively worked-on task (not just any focus lane).
+    // This gives an honest "parallel mode" indicator rather than a lane-count badge.
+    let focus_lane_count = lane_snapshots
         .iter()
-        .filter(|l| l.lane_type == DayLaneType::Focus)
+        .filter(|ls| ls.lane.lane_type == DayLaneType::Focus && ls.active_task_id.is_some())
         .count() as i32;
 
     let time_budget = TimeBudget {
@@ -258,6 +261,11 @@ pub fn is_external_active(task: &Task) -> bool {
             .external_status
             .as_ref()
             .is_some_and(|s| *s == ExternalStatus::Delegated || *s == ExternalStatus::NeedsReview)
+}
+
+/// A focus-active task is one the user is actively working on (not delegated externally).
+pub fn is_focus_active(task: &Task) -> bool {
+    task.status == TaskStatus::Active && !is_external_active(task)
 }
 
 pub fn needs_review_count(tasks: &[Task]) -> i32 {
