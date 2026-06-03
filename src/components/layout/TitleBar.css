@@ -1,18 +1,21 @@
 .titlebar {
   height: var(--titlebar-height);
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
+  display: flex;
+  align-items: stretch;
   padding: 0 12px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-surface);
   user-select: none;
+  flex-shrink: 0;
 }
 
 .titlebar__controls {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .titlebar__btn {
@@ -24,6 +27,8 @@
   justify-content: center;
   color: transparent;
   transition: color 0.15s;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .titlebar__controls:hover .titlebar__btn {
@@ -42,15 +47,17 @@
   background: #28c840;
 }
 
-.titlebar__title {
+.titlebar__drag {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-tertiary);
   letter-spacing: 0.02em;
+  cursor: default;
   -webkit-app-region: drag;
-  text-align: center;
-}
-
-.titlebar__spacer {
-  width: 68px;
+  app-region: drag;
 }
