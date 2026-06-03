@@ -486,6 +486,12 @@
   min-width: 0;
 }
 
+.task-card__priority {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
 .task-card__status {
   display: inline-flex;
   align-items: center;

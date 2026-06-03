@@ -70,6 +70,9 @@ export function ExternalTaskBlock({
       <div className="task-card__content">
         <div className="task-card__row-top">
           <TaskCardStatus kind={kind} />
+          {ctx.task.priority != null && (
+            <span className="task-card__priority">P{ctx.task.priority}</span>
+          )}
           <span className="task-card__title">{ctx.task.title}</span>
           <span className="task-card__time">{formatEstimate(est)}</span>
         </div>

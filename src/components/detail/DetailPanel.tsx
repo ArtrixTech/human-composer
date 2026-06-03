@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Check, Pause, Pin, Play, Trash2, X } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, Check, Pause, Pin, Play, Trash2, X } from "lucide-react";
 
 import * as api from "../../api/tauri";
 import { useAppStore } from "../../store/appStore";
@@ -16,8 +16,13 @@ export function DetailPanel() {
   const activateTask = useAppStore((s) => s.activateTask);
   const pauseTask = useAppStore((s) => s.pauseTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
+  const archiveTask = useAppStore((s) => s.archiveTask);
   const reorderTask = useAppStore((s) => s.reorderTask);
   const assignInboxTask = useAppStore((s) => s.assignInboxTask);
+  const renameBranch = useAppStore((s) => s.renameBranch);
+  const archiveBranchStore = useAppStore((s) => s.archiveBranch);
+  const deleteBranch = useAppStore((s) => s.deleteBranch);
+  const setTaskPriority = useAppStore((s) => s.setTaskPriority);
 
   const task = graph?.tasks.find((t) => t.id === selectedTaskId) ?? null;
   const branch = graph?.branches.find((b) => b.id === task?.branchId);
@@ -47,12 +52,7 @@ export function DetailPanel() {
     await refreshAll();
   };
 
-  const archiveBranch = async () => {
-    if (!branch) return;
-    await api.archiveBranch(activeProjectId, branch.id);
-    await refreshAll();
-    setDetailOpen(false);
-  };
+  const branchTaskCount = graph?.tasks.filter((t) => t.branchId === branch?.id).length ?? 0;
 
   const removeDep = async (dependsOnTaskId: string) => {
     await api.removeDependency(task.id, dependsOnTaskId);
@@ -120,6 +120,24 @@ export function DetailPanel() {
         />
       </label>
 
+      <label className="detail-panel__estimate">
+        优先级
+        <select
+          value={task.priority ?? ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            void setTaskPriority(task.id, v === "" ? null : parseInt(v, 10));
+          }}
+        >
+          <option value="">未设置</option>
+          {[1, 2, 3, 4, 5].map((p) => (
+            <option key={p} value={p}>
+              P{p}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <div className="detail-panel__meta">
         {branch && (
           <div className="detail-panel__branch-row">
@@ -134,8 +152,36 @@ export function DetailPanel() {
                 </option>
               ))}
             </select>
-            <button type="button" className="detail-panel__archive" onClick={() => void archiveBranch()}>
+            <button
+              type="button"
+              onClick={() => {
+                const name = window.prompt("重命名支线", branch.name);
+                if (name?.trim()) void renameBranch(branch.id, name.trim());
+              }}
+            >
+              重命名支线
+            </button>
+            <button
+              type="button"
+              className="detail-panel__archive"
+              onClick={() => {
+                if (window.confirm(`归档支线「${branch.name}」？`)) void archiveBranchStore(branch.id);
+              }}
+            >
               归档支线
+            </button>
+            <button
+              type="button"
+              className="detail-panel__archive"
+              onClick={() => {
+                const msg =
+                  branchTaskCount > 0
+                    ? `删除支线「${branch.name}」及其 ${branchTaskCount} 个任务？`
+                    : `删除空支线「${branch.name}」？`;
+                if (window.confirm(msg)) void deleteBranch(branch.id);
+              }}
+            >
+              删除支线
             </button>
           </div>
         )}
@@ -151,9 +197,31 @@ export function DetailPanel() {
 
       <section className="detail-panel__deps">
         <h3>依赖</h3>
+        <label className="detail-panel__add-dep">
+          添加阻塞于
+          <select
+            defaultValue=""
+            onChange={(e) => {
+              const depId = e.target.value;
+              if (!depId) return;
+              void api.addDependency(task.id, depId).then(() => refreshAll());
+              e.target.value = "";
+            }}
+          >
+            <option value="">选择任务…</option>
+            {graph?.tasks
+              .filter((t) => t.id !== task.id)
+              .filter((t) => !upstream.some((d) => d.dependsOnTaskId === t.id))
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title}
+                </option>
+              ))}
+          </select>
+        </label>
         <div className="detail-panel__dep-list">
           {upstream.length === 0 && downstream.length === 0 && (
-            <p className="detail-panel__dep-empty">在 DAG 上连线可添加跨支线依赖</p>
+            <p className="detail-panel__dep-empty">在详情中管理跨支线依赖（下方列表）</p>
           )}
           {upstream.map((d) => {
             const dep = graph?.tasks.find((t) => t.id === d.dependsOnTaskId);
@@ -175,10 +243,17 @@ export function DetailPanel() {
 
       <button
         type="button"
+        className="detail-panel__archive-task"
+        onClick={() => void archiveTask(task.id, activeProjectId)}
+      >
+        <Archive size={14} /> 归档任务
+      </button>
+      <button
+        type="button"
         className="detail-panel__delete"
         onClick={() => void deleteTask(task.id, activeProjectId)}
       >
-        <Trash2 size={14} /> 删除任务
+        <Trash2 size={14} /> 彻底删除
       </button>
     </aside>
   );

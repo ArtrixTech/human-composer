@@ -20,6 +20,9 @@ export function CommandPalette() {
   const selectProjectView = useAppStore((s) => s.selectProjectView);
   const selectTodayView = useAppStore((s) => s.selectTodayView);
   const createBranch = useAppStore((s) => s.createBranch);
+  const archiveBranch = useAppStore((s) => s.archiveBranch);
+  const deleteBranch = useAppStore((s) => s.deleteBranch);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
   const createLane = useAppStore((s) => s.createLane);
   const setAddLaneOpen = useAppStore((s) => s.setAddLaneOpen);
   const runwaySnapshot = useAppStore((s) => s.runwaySnapshot);
@@ -137,6 +140,27 @@ export function CommandPalette() {
             },
           });
       });
+      graph?.branches.forEach((b) => {
+        if (!q || b.name.toLowerCase().includes(q)) {
+          items.push({
+            id: `archive-branch-${b.id}`,
+            label: `归档支线「${b.name}」`,
+            group: "支线",
+            action: () => archiveBranch(b.id),
+          });
+          items.push({
+            id: `delete-branch-${b.id}`,
+            label: `删除支线「${b.name}」`,
+            group: "支线",
+            action: () => {
+              const count = graph?.tasks.filter((t) => t.branchId === b.id).length ?? 0;
+              const msg =
+                count > 0 ? `删除支线「${b.name}」及其 ${count} 个任务？` : `删除支线「${b.name}」？`;
+              if (window.confirm(msg)) void deleteBranch(b.id);
+            },
+          });
+        }
+      });
       projects.forEach((p) => {
         if (!q || p.name.toLowerCase().includes(q))
           items.push({
@@ -178,6 +202,9 @@ export function CommandPalette() {
     selectProjectView,
     selectTodayView,
     createBranch,
+    archiveBranch,
+    deleteBranch,
+    activeProjectId,
     completeTask,
     activateTask,
     addInboxTask,

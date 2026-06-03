@@ -113,3 +113,12 @@
 - **悬浮窗**：快速添加任务不再依赖 `backlog` 取 projectId
 
 **Commit:** `60bc8f8` (backend), `c3fa3e3` (frontend)
+
+## 2026-06-02 — 项目 Kanban + 优先级/归档 + 三项修复
+
+- **数据层**：`tasks.priority`、`tasks.archived`；`set_task_priority`、`archive_task`、`unarchive_task`、`delete_branch`、`reorder_branches`、`reorder_branch_tasks`；graph/runway/recommend 过滤已归档；推荐含 priority 权重
+- **项目视图**：`ProjectWorkspace` + `KanbanBoard`（React Flow 竖列 Kanban，每列一支线）；`kanbanLayout` 列内拓扑排序 + 仅真实 blocking 边；`BranchColumnHeader` 菜单/拖拽排列
+- **TaskNode**：180px 卡片、Top/Bottom handle、P{n}/归档；泳道 `TaskBlock` P badge
+- **修复**：悬浮窗 Capture→Pick→Assign + `getAppSnapshot` projectId；Inbox/DetailPanel/CommandPalette 归档与支线 CRUD；修复 Kanban 容器高度为 0 导致黑屏
+
+**Commit:** (pending)

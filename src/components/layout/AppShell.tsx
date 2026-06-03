@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { CommandPalette } from "../command/CommandPalette";
 import { DetailPanel } from "../detail/DetailPanel";
-import { DAGCanvas } from "../dag/DAGCanvas";
+import { ProjectWorkspace } from "../project/ProjectWorkspace";
 import { InboxPanel } from "../inbox/InboxPanel";
 import { RecommendPrompt } from "../recommend/RecommendPrompt";
 import { ToastContainer } from "../toast/ToastContainer";
@@ -42,7 +42,7 @@ export function AppShell() {
             <>
               <ProjectHeader />
               <div className="app-shell__workspace">
-                <DAGCanvas />
+                <ProjectWorkspace />
                 <DetailPanel />
               </div>
               <InboxPanel />

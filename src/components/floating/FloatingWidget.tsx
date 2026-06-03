@@ -3,7 +3,7 @@ import { Check, ChevronDown, ExternalLink, Pause, Play } from "lucide-react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 
-import type { DayRunwaySnapshot, TodayTaskContext } from "../../types";
+import type { Branch, BranchSuggestion, DayRunwaySnapshot, TodayTaskContext } from "../../types";
 import * as api from "../../api/tauri";
 import {
   findFirstClaimable,
@@ -51,11 +51,39 @@ const STATE_LABEL: Record<LaneState, string> = {
   idle: "空闲",
 };
 
+type FooterPhase = "typing" | "picking";
+
+async function resolveProjectId(): Promise<string | null> {
+  try {
+    const snap = await api.getAppSnapshot();
+    if (snap.projectId) return snap.projectId;
+  } catch {
+    /* fallback */
+  }
+  const projects = await api.listProjects();
+  return projects[0]?.id ?? null;
+}
+
 export function FloatingWidget() {
   const [snapshot, setSnapshot] = useState<DayRunwaySnapshot | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [title, setTitle] = useState("");
+  const [phase, setPhase] = useState<FooterPhase>("typing");
+  const [pickBranches, setPickBranches] = useState<Branch[]>([]);
+  const [branchSuggestion, setBranchSuggestion] = useState<BranchSuggestion | null>(null);
+  const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (phase !== "picking") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") skipAssign();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase]);
 
   useEffect(() => {
     void api.getDayRunwaySnapshot().then(setSnapshot);
@@ -70,16 +98,31 @@ export function FloatingWidget() {
     );
     return () => {
       void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
     };
   }, []);
+
+  const showFeedback = (msg: string) => {
+    setFeedback(msg);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = setTimeout(() => setFeedback(null), 2000);
+  };
+
+  const resetPick = () => {
+    setPhase("typing");
+    setPickBranches([]);
+    setBranchSuggestion(null);
+    setPendingTaskId(null);
+  };
 
   const resize = async (next: boolean) => {
     setExpanded(next);
     const win = getCurrentWindow();
     if (next) {
-      await win.setSize(new LogicalSize(320, 420));
+      await win.setSize(new LogicalSize(320, phase === "picking" ? 460 : 420));
     } else {
       await win.setSize(new LogicalSize(280, 52));
+      resetPick();
     }
   };
 
@@ -127,15 +170,37 @@ export function FloatingWidget() {
     setSnapshot(await api.getDayRunwaySnapshot());
   };
 
-  const addTask = async () => {
-    const projectId =
-      snapshot?.lanes[0]?.tasks[0]?.projectId ??
-      snapshot?.lanes.find((l) => l.tasks[0])?.tasks[0]?.projectId ??
-      primary?.projectId;
-    if (!projectId || !title.trim()) return;
-    await api.createTask(projectId, title.trim());
+  const startCreate = async () => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    const projectId = await resolveProjectId();
+    if (!projectId) {
+      showFeedback("无可用项目");
+      return;
+    }
+    const result = await api.createTask(projectId, trimmed);
     setTitle("");
+    const graph = await api.getProjectGraph(projectId);
+    setPickBranches(graph.branches);
+    setBranchSuggestion(result.branchSuggestion ?? null);
+    setPendingTaskId(result.task.id);
+    setPhase("picking");
+    void resize(true);
+  };
+
+  const assignBranch = async (branchId: string, branchName: string) => {
+    if (!pendingTaskId) return;
+    await api.assignTaskToBranch(pendingTaskId, branchId);
+    resetPick();
     setSnapshot(await api.getDayRunwaySnapshot());
+    showFeedback(`已分配到 ${branchName}`);
+    inputRef.current?.focus();
+  };
+
+  const skipAssign = () => {
+    resetPick();
+    showFeedback("已加入 Inbox");
+    inputRef.current?.focus();
   };
 
   const onBackgroundMouseDown = (e: React.MouseEvent) => {
@@ -279,15 +344,41 @@ export function FloatingWidget() {
       )}
 
       <footer className="floating__footer">
-        <input
-          ref={inputRef}
-          placeholder="快速添加…"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void addTask();
-          }}
-        />
+        {phase === "picking" ? (
+          <div className="floating__pick">
+            <p className="floating__pick-label">选择支线</p>
+            <div className="floating__pick-chips">
+              {pickBranches.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  className={
+                    branchSuggestion?.branchId === b.id
+                      ? "floating__pick-chip floating__pick-chip--suggested"
+                      : "floating__pick-chip"
+                  }
+                  onClick={() => void assignBranch(b.id, b.name)}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="floating__pick-skip" onClick={skipAssign}>
+              跳过（仅 Inbox）
+            </button>
+          </div>
+        ) : (
+          <input
+            ref={inputRef}
+            placeholder="快速添加…"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void startCreate();
+            }}
+          />
+        )}
+        {feedback && <p className="floating__feedback">{feedback}</p>}
       </footer>
     </div>
   );

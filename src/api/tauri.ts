@@ -214,6 +214,42 @@ export function archiveBranch(projectId: string, branchId: string): Promise<void
   return invoke("archive_branch", { projectId, branchId });
 }
 
+export function deleteBranch(projectId: string, branchId: string): Promise<void> {
+  return invoke("delete_branch", { projectId, branchId });
+}
+
+export function reorderBranches(projectId: string, branchIds: string[]): Promise<void> {
+  return invoke("reorder_branches", { projectId, branchIds });
+}
+
+export function setTaskPriority(
+  projectId: string,
+  taskId: string,
+  priority: number | null,
+): Promise<Task> {
+  return invoke("set_task_priority", { projectId, taskId, priority });
+}
+
+export function archiveTask(projectId: string, taskId: string): Promise<Task> {
+  return invoke("archive_task", { projectId, taskId });
+}
+
+export function unarchiveTask(projectId: string, taskId: string): Promise<Task> {
+  return invoke("unarchive_task", { projectId, taskId });
+}
+
+export function listArchivedTasks(projectId: string): Promise<Task[]> {
+  return invoke("list_archived_tasks", { projectId });
+}
+
+export function reorderBranchTasks(
+  projectId: string,
+  branchId: string,
+  taskIds: string[],
+): Promise<void> {
+  return invoke("reorder_branch_tasks", { projectId, branchId, taskIds });
+}
+
 export function reorderTask(
   projectId: string,
   taskId: string,

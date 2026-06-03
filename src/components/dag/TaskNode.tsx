@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Check, Circle, Play, Pause } from "lucide-react";
+import { Archive, Check, Circle, Play, Pause } from "lucide-react";
 
 import type { Task } from "../../types";
 import "./TaskNode.css";
@@ -14,6 +14,8 @@ export interface TaskNodeData {
   onStart?: (taskId: string) => void;
   onComplete?: (taskId: string) => void;
   onPause?: (taskId: string) => void;
+  onArchive?: (taskId: string) => void;
+  onCyclePriority?: (taskId: string, current: number | null) => void;
   [key: string]: unknown;
 }
 
@@ -27,7 +29,17 @@ const STATUS_LABEL: Record<Task["status"], string> = {
 
 function TaskNodeComponent({ data }: NodeProps) {
   const nodeData = data as TaskNodeData;
-  const { task, onStart, onComplete, onPause, onSelect, isRecommended, dependencyCount } = nodeData;
+  const {
+    task,
+    onStart,
+    onComplete,
+    onPause,
+    onSelect,
+    onArchive,
+    onCyclePriority,
+    isRecommended,
+    dependencyCount,
+  } = nodeData;
 
   return (
     <div
@@ -37,8 +49,34 @@ function TaskNodeComponent({ data }: NodeProps) {
       role="button"
       tabIndex={0}
     >
-      <Handle type="target" position={Position.Left} className="task-node__handle" />
+      <Handle type="target" position={Position.Top} className="task-node__handle" />
       <div className="task-node__header">
+        {task.priority != null && (
+          <button
+            type="button"
+            className="task-node__priority"
+            title="点击切换优先级"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCyclePriority?.(task.id, task.priority);
+            }}
+          >
+            P{task.priority}
+          </button>
+        )}
+        {task.priority == null && onCyclePriority && (
+          <button
+            type="button"
+            className="task-node__priority task-node__priority--unset"
+            title="设置优先级"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCyclePriority(task.id, null);
+            }}
+          >
+            —
+          </button>
+        )}
         <span className="task-node__status">{STATUS_LABEL[task.status]}</span>
         <div className="task-node__actions">
           {task.status === "ready" && onStart && (
@@ -90,6 +128,19 @@ function TaskNodeComponent({ data }: NodeProps) {
           {task.status === "pending" && (
             <Circle size={10} className="task-node__pending-icon" />
           )}
+          {onArchive && (
+            <button
+              type="button"
+              className="task-node__action task-node__action--archive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchive(task.id);
+              }}
+              title="归档"
+            >
+              <Archive size={12} />
+            </button>
+          )}
         </div>
       </div>
       <div className="task-node__title">{task.title}</div>
@@ -100,7 +151,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         {(dependencyCount ?? 0) > 0 && <span>⛓ {dependencyCount}</span>}
         {task.description && <span>📝</span>}
       </div>
-      <Handle type="source" position={Position.Right} className="task-node__handle" />
+      <Handle type="source" position={Position.Bottom} className="task-node__handle" />
     </div>
   );
 }

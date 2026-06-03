@@ -1,0 +1,108 @@
+.branch-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  user-select: none;
+}
+
+.branch-header__drag {
+  color: var(--text-tertiary);
+  cursor: grab;
+  display: flex;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.branch-header__toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  min-width: 0;
+}
+
+.branch-header__progress {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.branch-header__name-input {
+  flex: 1;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: var(--bg-base);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  color: var(--text-primary);
+}
+
+.branch-header__menu-wrap {
+  position: relative;
+}
+
+.branch-header__menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.branch-header__menu-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.branch-header__menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  min-width: 140px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 4px;
+}
+
+.branch-header__menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.branch-header__menu button:hover {
+  background: var(--bg-hover);
+}
+
+.branch-header__menu button.danger {
+  color: var(--color-danger);
+}

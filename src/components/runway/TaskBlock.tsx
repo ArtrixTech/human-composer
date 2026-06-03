@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Bot, Pause, Play } from "lucide-react";
+import { Archive, Bot, Pause, Play } from "lucide-react";
 import { useState } from "react";
 
 import type { TodayTaskContext } from "../../types";
@@ -42,6 +42,7 @@ export function TaskBlock({
 }) {
   const claimTask = useAppStore((s) => s.claimTask);
   const pauseTask = useAppStore((s) => s.pauseTask);
+  const archiveTask = useAppStore((s) => s.archiveTask);
   const [externalOpen, setExternalOpen] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -85,6 +86,9 @@ export function TaskBlock({
         <div className="task-card__content">
           <div className="task-card__row-top">
             <TaskCardStatus kind={kind} />
+            {ctx.task.priority != null && (
+              <span className="task-card__priority">P{ctx.task.priority}</span>
+            )}
             <span className="task-card__title">{ctx.task.title}</span>
             <span className="task-card__time">{formatEstimate(ctx.task.estimatedMinutes, isPending)}</span>
           </div>
@@ -132,6 +136,18 @@ export function TaskBlock({
                 <Bot size={12} />
               </button>
             )}
+            <button
+              type="button"
+              className="task-card__action"
+              aria-label="归档"
+              onPointerDown={stopCardDrag}
+              onClick={(e) => {
+                e.stopPropagation();
+                void archiveTask(ctx.task.id, ctx.projectId);
+              }}
+            >
+              <Archive size={12} />
+            </button>
           </div>
         </div>
       </div>

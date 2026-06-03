@@ -1,0 +1,116 @@
+.project-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.project-workspace__board-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  padding: 0;
+}
+
+.project-workspace__toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+
+.project-workspace__toolbar button {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.project-workspace__toolbar button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.project-workspace__new-branch {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.project-workspace__new-branch input {
+  font-size: var(--text-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  color: var(--text-primary);
+  min-width: 120px;
+}
+
+.project-workspace__archived {
+  flex-shrink: 0;
+  padding: 8px 12px 12px;
+  margin-top: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.project-workspace__archived-title {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+
+.project-workspace__archived button {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.project-workspace__archived button:hover {
+  color: var(--text-primary);
+}
+
+.project-workspace__archived-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-workspace__archived-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.project-workspace__archived-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.project-workspace__archived-list li button {
+  font-size: var(--text-xs);
+  color: var(--accent);
+}
+
+.project-workspace__archived-empty {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}

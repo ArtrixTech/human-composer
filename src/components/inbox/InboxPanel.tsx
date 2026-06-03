@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Inbox } from "lucide-react";
+import { Archive, ChevronDown, ChevronUp, Inbox } from "lucide-react";
 
 import * as api from "../../api/tauri";
 import { useAppStore } from "../../store/appStore";
@@ -11,6 +11,8 @@ export function InboxPanel() {
   const toggleInbox = useAppStore((s) => s.toggleInbox);
   const addInboxTask = useAppStore((s) => s.addInboxTask);
   const refreshAll = useAppStore((s) => s.refreshAll);
+  const archiveTask = useAppStore((s) => s.archiveTask);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
   const [title, setTitle] = useState("");
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
@@ -65,6 +67,16 @@ export function InboxPanel() {
                   >
                     {task.title}
                   </button>
+                  {activeProjectId && (
+                    <button
+                      type="button"
+                      className="inbox-panel__archive"
+                      title="归档"
+                      onClick={() => void archiveTask(task.id, activeProjectId)}
+                    >
+                      <Archive size={14} />
+                    </button>
+                  )}
                   {assigningId === task.id && (
                     <div className="inbox-panel__dropdown">
                       {graph.branches.map((branch) => (

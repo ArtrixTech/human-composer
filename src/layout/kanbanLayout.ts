@@ -1,0 +1,173 @@
+import type { Edge, Node } from "@xyflow/react";
+
+import type { Branch, Task, TaskDependency } from "../types";
+
+export const COLUMN_WIDTH = 220;
+export const CARD_WIDTH = 180;
+export const CARD_HEIGHT = 72;
+export const COLUMN_HEADER_HEIGHT = 48;
+export const CARD_GAP = 12;
+const ADD_TASK_HEIGHT = 36;
+
+export interface KanbanLayoutResult {
+  nodes: Node[];
+  edges: Edge[];
+  metrics: {
+    totalWidth: number;
+    totalHeight: number;
+    columnCount: number;
+  };
+}
+
+function defaultSort(a: Task, b: Task): number {
+  const pa = a.priority ?? Number.MAX_SAFE_INTEGER;
+  const pb = b.priority ?? Number.MAX_SAFE_INTEGER;
+  if (pa !== pb) return pa - pb;
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+  return a.createdAt.localeCompare(b.createdAt);
+}
+
+/** Topological order: blockers above blocked tasks. Falls back to defaultSort on cycle. */
+export function orderTasksInColumn(tasks: Task[], dependencies: TaskDependency[]): Task[] {
+  if (tasks.length === 0) return [];
+
+  const ids = new Set(tasks.map((t) => t.id));
+  const inColumnDeps = dependencies.filter(
+    (d) => ids.has(d.taskId) && ids.has(d.dependsOnTaskId),
+  );
+
+  if (inColumnDeps.length === 0) {
+    return [...tasks].sort(defaultSort);
+  }
+
+  const inDegree = new Map<string, number>();
+  const adj = new Map<string, string[]>();
+
+  for (const t of tasks) {
+    inDegree.set(t.id, 0);
+    adj.set(t.id, []);
+  }
+
+  for (const d of inColumnDeps) {
+    adj.get(d.dependsOnTaskId)!.push(d.taskId);
+    inDegree.set(d.taskId, (inDegree.get(d.taskId) ?? 0) + 1);
+  }
+
+  const queue: Task[] = tasks
+    .filter((t) => (inDegree.get(t.id) ?? 0) === 0)
+    .sort(defaultSort);
+
+  const ordered: Task[] = [];
+  const taskById = new Map(tasks.map((t) => [t.id, t]));
+
+  while (queue.length > 0) {
+    queue.sort(defaultSort);
+    const current = queue.shift()!;
+    ordered.push(current);
+
+    for (const nextId of adj.get(current.id) ?? []) {
+      const deg = (inDegree.get(nextId) ?? 1) - 1;
+      inDegree.set(nextId, deg);
+      if (deg === 0) {
+        const next = taskById.get(nextId);
+        if (next) queue.push(next);
+      }
+    }
+  }
+
+  if (ordered.length !== tasks.length) {
+    return [...tasks].sort(defaultSort);
+  }
+
+  return ordered;
+}
+
+export function buildKanbanLayout(
+  branches: Branch[],
+  tasks: Task[],
+  dependencies: TaskDependency[],
+  hideDone = false,
+): KanbanLayoutResult {
+  const sortedBranches = [...branches].sort((a, b) => a.sortOrder - b.sortOrder);
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+  let maxColumnHeight = COLUMN_HEADER_HEIGHT;
+
+  sortedBranches.forEach((branch, columnIndex) => {
+    const columnX = columnIndex * COLUMN_WIDTH + (COLUMN_WIDTH - CARD_WIDTH) / 2;
+    const branchTasks = tasks.filter(
+      (t) =>
+        t.branchId === branch.id &&
+        t.status !== "inbox" &&
+        (!hideDone || t.status !== "done"),
+    );
+
+    const allInBranch = tasks.filter((t) => t.branchId === branch.id && t.status !== "inbox");
+    const done = allInBranch.filter((t) => t.status === "done").length;
+    const progress = allInBranch.length > 0 ? `${done}/${allInBranch.length}` : undefined;
+
+    const headerX = columnIndex * COLUMN_WIDTH + 10;
+
+    nodes.push({
+      id: `header-${branch.id}`,
+      type: "branchHeader",
+      position: { x: headerX, y: 0 },
+      data: {
+        label: branch.name,
+        branchId: branch.id,
+        progress,
+      },
+      draggable: true,
+    });
+
+    const ordered = orderTasksInColumn(branchTasks, dependencies);
+    ordered.forEach((task, index) => {
+      const y = COLUMN_HEADER_HEIGHT + index * (CARD_HEIGHT + CARD_GAP);
+      nodes.push({
+        id: task.id,
+        type: "task",
+        position: { x: columnX, y },
+        data: { task, branchName: branch.name },
+      });
+    });
+
+    const addY =
+      COLUMN_HEADER_HEIGHT + ordered.length * (CARD_HEIGHT + CARD_GAP) + 8;
+    nodes.push({
+      id: `add-${branch.id}`,
+      type: "addTask",
+      position: { x: columnX, y: addY },
+      data: { branchId: branch.id },
+      draggable: false,
+    });
+
+    const colHeight = addY + ADD_TASK_HEIGHT;
+    maxColumnHeight = Math.max(maxColumnHeight, colHeight);
+  });
+
+  const visibleTaskIds = new Set(
+    nodes.filter((n) => n.type === "task").map((n) => n.id),
+  );
+
+  dependencies.forEach((dep) => {
+    if (!visibleTaskIds.has(dep.taskId) || !visibleTaskIds.has(dep.dependsOnTaskId)) {
+      return;
+    }
+    edges.push({
+      id: `block-${dep.dependsOnTaskId}-${dep.taskId}`,
+      source: dep.dependsOnTaskId,
+      target: dep.taskId,
+      type: "blocking",
+    });
+  });
+
+  return {
+    nodes,
+    edges,
+    metrics: {
+      totalWidth: Math.max(sortedBranches.length, 1) * COLUMN_WIDTH,
+      totalHeight: maxColumnHeight + 24,
+      columnCount: sortedBranches.length,
+    },
+  };
+}

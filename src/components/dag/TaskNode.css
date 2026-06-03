@@ -1,6 +1,6 @@
 .task-node {
-  width: 196px;
-  padding: 10px 12px;
+  width: 180px;
+  padding: 8px 10px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
@@ -56,11 +56,37 @@
   border-color: var(--border-default);
 }
 
+.task-node__priority {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.task-node__priority--unset {
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+.task-node__priority:hover {
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.task-node__action--archive:hover {
+  color: var(--color-danger);
+}
+
 .task-node__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  gap: 4px;
+  margin-bottom: 4px;
 }
 
 .task-node__status {

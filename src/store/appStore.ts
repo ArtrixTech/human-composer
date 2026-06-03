@@ -79,6 +79,13 @@ interface AppStore {
   addBranchTask: (branchId: string, title: string) => Promise<void>;
   createBranch: (name: string) => Promise<void>;
   renameBranch: (branchId: string, name: string) => Promise<void>;
+  archiveBranch: (branchId: string) => Promise<void>;
+  deleteBranch: (branchId: string) => Promise<void>;
+  reorderBranches: (branchIds: string[]) => Promise<void>;
+  setTaskPriority: (taskId: string, priority: number | null) => Promise<void>;
+  archiveTask: (taskId: string, projectId?: string) => Promise<void>;
+  unarchiveTask: (taskId: string, projectId?: string) => Promise<void>;
+  reorderBranchTasks: (branchId: string, taskIds: string[]) => Promise<void>;
   assignInboxTask: (taskId: string, branchId: string) => Promise<void>;
   completeTask: (taskId: string, projectId?: string, laneId?: string) => Promise<void>;
   activateTask: (taskId: string, projectId: string, laneId?: string) => Promise<void>;
@@ -398,6 +405,67 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { activeProjectId } = get();
     if (!activeProjectId) return;
     await api.renameBranch(activeProjectId, branchId, name);
+    await get().refreshAll();
+  },
+
+  archiveBranch: async (branchId) => {
+    const { activeProjectId } = get();
+    if (!activeProjectId) return;
+    await api.archiveBranch(activeProjectId, branchId);
+    await get().refreshAll();
+    useToastStore.getState().push({ message: "支线已归档" });
+  },
+
+  deleteBranch: async (branchId) => {
+    const { activeProjectId } = get();
+    if (!activeProjectId) return;
+    await api.deleteBranch(activeProjectId, branchId);
+    await get().refreshAll();
+    useToastStore.getState().push({ message: "支线已删除" });
+  },
+
+  reorderBranches: async (branchIds) => {
+    const { activeProjectId } = get();
+    if (!activeProjectId) return;
+    await api.reorderBranches(activeProjectId, branchIds);
+    await get().refreshAll();
+  },
+
+  setTaskPriority: async (taskId, priority) => {
+    const { activeProjectId } = get();
+    if (!activeProjectId) return;
+    await api.setTaskPriority(activeProjectId, taskId, priority);
+    await get().refreshAll();
+  },
+
+  archiveTask: async (taskId, projectId) => {
+    const pid =
+      projectId ?? get().activeProjectId ?? get().graph?.tasks.find((t) => t.id === taskId)?.projectId;
+    if (!pid) return;
+    const title = get().graph?.tasks.find((t) => t.id === taskId)?.title ?? "任务";
+    await api.archiveTask(pid, taskId);
+    await get().refreshAll();
+    if (get().selectedTaskId === taskId) {
+      set({ detailOpen: false, selectedTaskId: null });
+    }
+    useToastStore.getState().push({
+      message: `已归档「${title}」`,
+      undo: () => get().unarchiveTask(taskId, pid),
+    });
+  },
+
+  unarchiveTask: async (taskId, projectId) => {
+    const pid = projectId ?? get().activeProjectId;
+    if (!pid) return;
+    await api.unarchiveTask(pid, taskId);
+    await get().refreshAll();
+    useToastStore.getState().push({ message: "已恢复任务" });
+  },
+
+  reorderBranchTasks: async (branchId, taskIds) => {
+    const { activeProjectId } = get();
+    if (!activeProjectId) return;
+    await api.reorderBranchTasks(activeProjectId, branchId, taskIds);
     await get().refreshAll();
   },
 

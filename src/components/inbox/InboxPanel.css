@@ -59,13 +59,31 @@
 
 .inbox-panel__item {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
   padding: 8px 10px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   font-size: 13px;
+}
+
+.inbox-panel__archive {
+  flex-shrink: 0;
+  margin-left: auto;
+  display: flex;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.inbox-panel__archive:hover {
+  color: var(--color-danger);
+  background: var(--bg-hover);
 }
 
 .inbox-panel__item-title {

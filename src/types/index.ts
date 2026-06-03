@@ -34,6 +34,8 @@ export interface Task {
   externalStartedAt: string | null;
   externalCompletedAt: string | null;
   externalNote: string | null;
+  priority: number | null;
+  archived: boolean;
   createdAt: string;
   completedAt: string | null;
 }
