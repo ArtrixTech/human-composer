@@ -121,4 +121,4 @@
 - **TaskNode**：180px 卡片、Top/Bottom handle、P{n}/归档；泳道 `TaskBlock` P badge
 - **修复**：悬浮窗 Capture→Pick→Assign + `getAppSnapshot` projectId；Inbox/DetailPanel/CommandPalette 归档与支线 CRUD；修复 Kanban 容器高度为 0 导致黑屏
 
-**Commit:** (pending)
+**Commit:** `1972c06` (backend), `ed74b44` (frontend), `77e1df0` (titlebar)
