@@ -45,6 +45,11 @@ pub fn compute_recommendations(
             if task.pinned {
                 score += 1000.0;
             }
+            if let Some(p) = task.priority {
+                if (1..=5).contains(&p) {
+                    score += (6 - p) as f64 * 50.0;
+                }
+            }
 
             RecommendedTask {
                 task: task.clone(),

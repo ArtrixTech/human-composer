@@ -709,6 +709,112 @@ pub fn archive_branch(
 }
 
 #[tauri::command]
+pub fn delete_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_id: String,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.delete_branch(&branch_id).map_err(|e| e.to_string())?;
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn reorder_branches(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_ids: Vec<String>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_branches(&project_id, &branch_ids)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn set_task_priority(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+    priority: Option<i32>,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.set_task_priority(&task_id, priority)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn archive_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.archive_task(&task_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    emit_runway_only(&app, &state)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn unarchive_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.unarchive_task(&task_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn list_archived_tasks(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<Task>, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_archived_tasks_for_project(&project_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn reorder_branch_tasks(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_id: String,
+    task_ids: Vec<String>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_branch_tasks(&branch_id, &task_ids)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
 pub fn suggest_branch_for_task(
     state: State<'_, AppState>,
     project_id: String,

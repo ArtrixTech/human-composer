@@ -141,6 +141,8 @@ pub struct Task {
     pub external_started_at: Option<DateTime<Utc>>,
     pub external_completed_at: Option<DateTime<Utc>>,
     pub external_note: Option<String>,
+    pub priority: Option<i32>,
+    pub archived: bool,
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
 }

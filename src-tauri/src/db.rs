@@ -104,6 +104,8 @@ impl Database {
         self.ensure_column("tasks", "external_started_at", "TEXT")?;
         self.ensure_column("tasks", "external_completed_at", "TEXT")?;
         self.ensure_column("tasks", "external_note", "TEXT")?;
+        self.ensure_column("tasks", "priority", "INTEGER")?;
+        self.ensure_column("tasks", "archived", "INTEGER NOT NULL DEFAULT 0")?;
 
         if self.get_setting("day_end_time")?.is_none() {
             self.set_setting("day_end_time", DEFAULT_DAY_END)?;
@@ -135,12 +137,15 @@ impl Database {
             external_started_at: row.get::<_, Option<String>>(13)?.and_then(|s| s.parse().ok()),
             external_completed_at: row.get::<_, Option<String>>(14)?.and_then(|s| s.parse().ok()),
             external_note: row.get(15)?,
+            priority: row.get(16)?,
+            archived: row.get::<_, i32>(17)? != 0,
         })
     }
 
     const TASK_SELECT: &'static str = "SELECT id, project_id, branch_id, title, description, status,
                     sort_order, pinned, estimated_minutes, created_at, completed_at,
-                    task_type, external_status, external_started_at, external_completed_at, external_note";
+                    task_type, external_status, external_started_at, external_completed_at, external_note,
+                    priority, archived";
 
     fn ensure_column(&self, table: &str, column: &str, definition: &str) -> rusqlite::Result<()> {
         let mut stmt = self
@@ -391,11 +396,25 @@ impl Database {
     fn get_tasks_for_project(&self, project_id: &str) -> rusqlite::Result<Vec<Task>> {
         let mut stmt = self.conn.prepare(
             &format!(
-                "{} FROM tasks t WHERE t.project_id = ?1 ORDER BY t.sort_order ASC, t.created_at ASC",
+                "{} FROM tasks t WHERE t.project_id = ?1 AND t.archived = 0
+                 ORDER BY CASE WHEN t.priority IS NULL THEN 1 ELSE 0 END,
+                          t.priority ASC, t.sort_order ASC, t.created_at ASC",
                 Self::TASK_SELECT
             ),
         )?;
 
+        let rows = stmt.query_map(params![project_id], Self::map_task_row)?;
+        rows.collect()
+    }
+
+    pub fn get_archived_tasks_for_project(&self, project_id: &str) -> rusqlite::Result<Vec<Task>> {
+        let mut stmt = self.conn.prepare(
+            &format!(
+                "{} FROM tasks t WHERE t.project_id = ?1 AND t.archived = 1
+                 ORDER BY t.created_at DESC",
+                Self::TASK_SELECT
+            ),
+        )?;
         let rows = stmt.query_map(params![project_id], Self::map_task_row)?;
         rows.collect()
     }
@@ -405,7 +424,8 @@ impl Database {
             "SELECT td.task_id, td.depends_on_task_id
              FROM task_dependencies td
              JOIN tasks t ON td.task_id = t.id
-             WHERE t.project_id = ?1",
+             JOIN tasks d ON td.depends_on_task_id = d.id
+             WHERE t.project_id = ?1 AND t.archived = 0 AND d.archived = 0",
         )?;
 
         let rows = stmt.query_map(params![project_id], |row| {
@@ -591,6 +611,86 @@ impl Database {
         Ok(())
     }
 
+    pub fn delete_branch(&self, branch_id: &str) -> rusqlite::Result<()> {
+        let task_ids: Vec<String> = self
+            .conn
+            .prepare("SELECT id FROM tasks WHERE branch_id = ?1")?
+            .query_map(params![branch_id], |row| row.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+        for task_id in task_ids {
+            self.conn.execute(
+                "DELETE FROM day_lane_tasks WHERE task_id = ?1",
+                params![task_id],
+            )?;
+            self.delete_task(&task_id)?;
+        }
+        self.conn
+            .execute("DELETE FROM branches WHERE id = ?1", params![branch_id])?;
+        Ok(())
+    }
+
+    pub fn reorder_branches(&self, project_id: &str, branch_ids: &[String]) -> rusqlite::Result<()> {
+        for (i, branch_id) in branch_ids.iter().enumerate() {
+            self.conn.execute(
+                "UPDATE branches SET sort_order = ?1 WHERE id = ?2 AND project_id = ?3",
+                params![i as i32, branch_id, project_id],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn set_task_priority(&self, task_id: &str, priority: Option<i32>) -> rusqlite::Result<Task> {
+        if let Some(p) = priority {
+            if !(1..=5).contains(&p) {
+                return Err(rusqlite::Error::InvalidParameterName(
+                    "priority must be 1-5".into(),
+                ));
+            }
+        }
+        self.conn.execute(
+            "UPDATE tasks SET priority = ?1 WHERE id = ?2",
+            params![priority, task_id],
+        )?;
+        self.get_task(task_id)
+    }
+
+    pub fn archive_task(&self, task_id: &str) -> rusqlite::Result<Task> {
+        let task = self.get_task(task_id)?;
+        if task.status == TaskStatus::Active {
+            self.set_task_status(task_id, TaskStatus::Ready)?;
+        }
+        self.conn.execute(
+            "DELETE FROM day_lane_tasks WHERE task_id = ?1",
+            params![task_id],
+        )?;
+        self.conn
+            .execute("UPDATE tasks SET archived = 1 WHERE id = ?1", params![task_id])?;
+        if let Ok(project_id) = self.project_id_for_task(task_id) {
+            let _ = self.recalculate_project_statuses(&project_id);
+        }
+        self.get_task(task_id)
+    }
+
+    pub fn unarchive_task(&self, task_id: &str) -> rusqlite::Result<Task> {
+        self.conn
+            .execute("UPDATE tasks SET archived = 0 WHERE id = ?1", params![task_id])?;
+        if let Ok(project_id) = self.project_id_for_task(task_id) {
+            let _ = self.recalculate_project_statuses(&project_id);
+        }
+        self.get_task(task_id)
+    }
+
+    pub fn reorder_branch_tasks(&self, branch_id: &str, task_ids: &[String]) -> rusqlite::Result<()> {
+        for (i, task_id) in task_ids.iter().enumerate() {
+            self.conn.execute(
+                "UPDATE tasks SET sort_order = ?1 WHERE id = ?2 AND branch_id = ?3",
+                params![i as i32, task_id, branch_id],
+            )?;
+        }
+        Ok(())
+    }
+
     pub fn set_task_pinned(&self, task_id: &str, pinned: bool) -> rusqlite::Result<Task> {
         self.conn.execute(
             "UPDATE tasks SET pinned = ?1 WHERE id = ?2",
@@ -684,7 +784,7 @@ impl Database {
     pub fn get_all_tasks(&self) -> rusqlite::Result<Vec<Task>> {
         let mut stmt = self.conn.prepare(
             &format!(
-                "{} FROM tasks ORDER BY sort_order ASC, created_at ASC",
+                "{} FROM tasks WHERE archived = 0 ORDER BY sort_order ASC, created_at ASC",
                 Self::TASK_SELECT
             ),
         )?;
