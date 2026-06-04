@@ -131,4 +131,4 @@
 - **底部整合**：`ProjectFooterBar` 合并已归档支线/任务 popover；toolbar ghost 按钮；Inbox compact row + fixed popover 分配
 - **间距统一**：Header / Toolbar / Board / Inbox 均使用 `--page-padding-x: 16px`
 
-**Commit:** _(pending)_
+**Commit:** `067b216`
