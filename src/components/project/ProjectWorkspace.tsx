@@ -1,9 +1,8 @@
 import { useState } from "react";
 
 import { useAppStore } from "../../store/appStore";
-import { ArchivedBranchesPanel } from "./ArchivedBranchesPanel";
-import { ArchivedTasksSection } from "./ArchivedTasksSection";
 import { KanbanBoard } from "./KanbanBoard";
+import { ProjectFooterBar } from "./ProjectFooterBar";
 import "./ProjectWorkspace.css";
 
 export function ProjectWorkspace() {
@@ -13,7 +12,6 @@ export function ProjectWorkspace() {
 
   const [addingBranch, setAddingBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
-  const [showArchivedBranches, setShowArchivedBranches] = useState(false);
 
   if (!graph || !activeProjectId) return null;
 
@@ -43,11 +41,12 @@ export function ProjectWorkspace() {
                 }
               }}
             />
-            <button type="button" onClick={() => void submitBranch()}>
+            <button type="button" className="project-workspace__toolbar-action" onClick={() => void submitBranch()}>
               创建
             </button>
             <button
               type="button"
+              className="project-workspace__toolbar-action"
               onClick={() => {
                 setAddingBranch(false);
                 setNewBranchName("");
@@ -57,21 +56,17 @@ export function ProjectWorkspace() {
             </button>
           </div>
         ) : (
-          <button type="button" onClick={() => setAddingBranch(true)}>
+          <button type="button" className="project-workspace__toolbar-action" onClick={() => setAddingBranch(true)}>
             + 新支线
           </button>
         )}
-        <button type="button" onClick={() => setShowArchivedBranches((s) => !s)}>
-          {showArchivedBranches ? "隐藏已归档支线" : "显示已归档支线"}
-        </button>
       </div>
 
       <div className="project-workspace__board-scroll">
         <KanbanBoard />
       </div>
 
-      {showArchivedBranches && <ArchivedBranchesPanel projectId={activeProjectId} />}
-      <ArchivedTasksSection projectId={activeProjectId} />
+      <ProjectFooterBar projectId={activeProjectId} />
     </div>
   );
 }

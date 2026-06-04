@@ -1,13 +1,24 @@
 import type { Edge, Node } from "@xyflow/react";
 
 import type { Branch, Task, TaskDependency } from "../types";
+import {
+  KANBAN_ADD_TASK_HEIGHT,
+  KANBAN_CARD_GAP,
+  KANBAN_CARD_HEIGHT,
+  KANBAN_CARD_WIDTH,
+  KANBAN_COLUMN_GUTTER,
+  KANBAN_COLUMN_WIDTH,
+  KANBAN_HEADER_HEIGHT,
+} from "./kanbanTokens";
 
-export const COLUMN_WIDTH = 220;
-export const CARD_WIDTH = 180;
-export const CARD_HEIGHT = 72;
-export const COLUMN_HEADER_HEIGHT = 48;
-export const CARD_GAP = 12;
-const ADD_TASK_HEIGHT = 36;
+export const COLUMN_WIDTH = KANBAN_COLUMN_WIDTH;
+export const COLUMN_PADDING = KANBAN_COLUMN_GUTTER;
+export const BRANCH_HEADER_WIDTH = KANBAN_CARD_WIDTH;
+export const CARD_WIDTH = KANBAN_CARD_WIDTH;
+export const CARD_HEIGHT = KANBAN_CARD_HEIGHT;
+export const COLUMN_HEADER_HEIGHT = KANBAN_HEADER_HEIGHT;
+export const CARD_GAP = KANBAN_CARD_GAP;
+const ADD_TASK_HEIGHT = KANBAN_ADD_TASK_HEIGHT;
 
 export interface KanbanLayoutResult {
   nodes: Node[];
@@ -94,7 +105,8 @@ export function buildKanbanLayout(
   let maxColumnHeight = COLUMN_HEADER_HEIGHT;
 
   sortedBranches.forEach((branch, columnIndex) => {
-    const columnX = columnIndex * COLUMN_WIDTH + (COLUMN_WIDTH - CARD_WIDTH) / 2;
+    const columnLeft = columnIndex * COLUMN_WIDTH;
+    const contentX = columnLeft + COLUMN_PADDING;
     const branchTasks = tasks.filter(
       (t) =>
         t.branchId === branch.id &&
@@ -106,18 +118,17 @@ export function buildKanbanLayout(
     const done = allInBranch.filter((t) => t.status === "done").length;
     const progress = allInBranch.length > 0 ? `${done}/${allInBranch.length}` : undefined;
 
-    const headerX = columnIndex * COLUMN_WIDTH + 10;
-
     nodes.push({
       id: `header-${branch.id}`,
       type: "branchHeader",
-      position: { x: headerX, y: 0 },
+      position: { x: contentX, y: 0 },
       data: {
         label: branch.name,
         branchId: branch.id,
         progress,
+        columnIndex,
       },
-      draggable: true,
+      draggable: false,
     });
 
     const ordered = orderTasksInColumn(branchTasks, dependencies);
@@ -126,17 +137,16 @@ export function buildKanbanLayout(
       nodes.push({
         id: task.id,
         type: "task",
-        position: { x: columnX, y },
+        position: { x: contentX, y },
         data: { task, branchName: branch.name },
       });
     });
 
-    const addY =
-      COLUMN_HEADER_HEIGHT + ordered.length * (CARD_HEIGHT + CARD_GAP) + 8;
+    const addY = COLUMN_HEADER_HEIGHT + ordered.length * (CARD_HEIGHT + CARD_GAP) + CARD_GAP;
     nodes.push({
       id: `add-${branch.id}`,
       type: "addTask",
-      position: { x: columnX, y: addY },
+      position: { x: contentX, y: addY },
       data: { branchId: branch.id },
       draggable: false,
     });

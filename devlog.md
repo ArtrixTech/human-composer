@@ -122,3 +122,13 @@
 - **修复**：悬浮窗 Capture→Pick→Assign + `getAppSnapshot` projectId；Inbox/DetailPanel/CommandPalette 归档与支线 CRUD；修复 Kanban 容器高度为 0 导致黑屏
 
 **Commit:** `1972c06` (backend), `ed74b44` (frontend), `77e1df0` (titlebar)
+
+## 2026-06-04 — Project 页面 UI Linear 化
+
+- **布局 token**：`theme.css` 新增 `--page-padding-*`、`--kanban-*`；`kanbanTokens.ts` 与 `kanbanLayout.ts` 同步（列宽 196、卡片 180×76、header/card 左对齐）
+- **ProjectHeader**：两行结构（项目名 + inline stats；推荐 chip + 隐藏已完成）；去掉竖排英文 stat；RecommendPrompt 在 project 视图禁用
+- **Kanban 扁平化**：移除 zebra 列与 dot 背景；`BranchColumnHeader` 改为 flat section；`TaskNode` left-accent、固定高度、hover-reveal 操作、全宽「+ 添加任务」
+- **底部整合**：`ProjectFooterBar` 合并已归档支线/任务 popover；toolbar ghost 按钮；Inbox compact row + fixed popover 分配
+- **间距统一**：Header / Toolbar / Board / Inbox 均使用 `--page-padding-x: 16px`
+
+**Commit:** _(pending)_

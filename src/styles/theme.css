@@ -59,6 +59,20 @@
   --surface-card-active: rgba(59, 130, 246, 0.08);
   --lane-focus-accent: var(--accent);
   --lane-watch-accent: var(--status-external);
+
+  /* Project page layout */
+  --page-padding-x: 16px;
+  --page-padding-y: 12px;
+  --toolbar-height: 36px;
+
+  /* Kanban layout — sync with src/layout/kanbanTokens.ts */
+  --kanban-column-width: 196px;
+  --kanban-column-gutter: 8px;
+  --kanban-card-width: 180px;
+  --kanban-card-height: 76px;
+  --kanban-card-gap: 8px;
+  --kanban-header-height: 40px;
+  --kanban-add-task-height: 32px;
 }
 
 * {

@@ -16,7 +16,7 @@ export function RecommendPrompt() {
     return () => clearTimeout(timer);
   }, [recommendPrompt, dismissRecommend]);
 
-  if (currentView === "today") return null;
+  if (currentView === "today" || currentView === "project") return null;
   if (!recommendPrompt || recommendPrompt.length === 0) return null;
 
   const top = recommendPrompt[0];

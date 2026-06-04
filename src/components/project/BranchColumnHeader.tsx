@@ -13,12 +13,28 @@ export interface BranchColumnHeaderData {
   onRename?: (branchId: string, name: string) => void;
   onArchive?: (branchId: string) => void;
   onDelete?: (branchId: string, taskCount: number) => void;
+  canMoveLeft?: boolean;
+  canMoveRight?: boolean;
+  onMoveLeft?: () => void;
+  onMoveRight?: () => void;
   [key: string]: unknown;
 }
 
 function BranchColumnHeaderComponent({ data }: NodeProps) {
   const nodeData = data as BranchColumnHeaderData;
-  const { label, branchId, progress, taskCount = 0, onRename, onArchive, onDelete } = nodeData;
+  const {
+    label,
+    branchId,
+    progress,
+    taskCount = 0,
+    onRename,
+    onArchive,
+    onDelete,
+    canMoveLeft,
+    canMoveRight,
+    onMoveLeft,
+    onMoveRight,
+  } = nodeData;
 
   const renameBranch = useAppStore((s) => s.renameBranch);
   const archiveBranch = useAppStore((s) => s.archiveBranch);
@@ -84,7 +100,7 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
           }}
         />
       ) : (
-        <div className="branch-column-header__title" title="拖拽调整列顺序">
+        <div className="branch-column-header__title">
           <span className="branch-column-header__name">{label}</span>
           {progress && <span className="branch-column-header__progress">{progress}</span>}
         </div>
@@ -103,6 +119,28 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
         </button>
         {menuOpen && (
           <div className="branch-column-header__menu">
+            {canMoveLeft && onMoveLeft && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onMoveLeft();
+                }}
+              >
+                左移
+              </button>
+            )}
+            {canMoveRight && onMoveRight && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onMoveRight();
+                }}
+              >
+                右移
+              </button>
+            )}
             <button type="button" onClick={() => { setMenuOpen(false); setEditing(true); }}>
               重命名
             </button>

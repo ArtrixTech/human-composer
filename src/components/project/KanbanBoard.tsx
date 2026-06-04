@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Background,
-  BackgroundVariant,
   ReactFlow,
   useEdgesState,
   useNodesState,
@@ -29,6 +27,8 @@ const edgeTypes = {
   blocking: BlockingEdge,
 };
 
+const LOCKED_VIEWPORT = { x: 0, y: 0, zoom: 1 };
+
 export function KanbanBoard() {
   const graph = useAppStore((s) => s.graph);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
@@ -48,8 +48,19 @@ export function KanbanBoard() {
   const archiveTask = useAppStore((s) => s.archiveTask);
   const setTaskPriority = useAppStore((s) => s.setTaskPriority);
 
+  const sortedBranches = useMemo(
+    () => (graph ? [...graph.branches].sort((a, b) => a.sortOrder - b.sortOrder) : []),
+    [graph?.branches],
+  );
+
   const layout = useMemo(() => {
-    if (!graph) return { nodes: [], edges: [], metrics: { totalWidth: COLUMN_WIDTH, totalHeight: 400, columnCount: 0 } };
+    if (!graph) {
+      return {
+        nodes: [],
+        edges: [],
+        metrics: { totalWidth: COLUMN_WIDTH, totalHeight: 400, columnCount: 0 },
+      };
+    }
     return buildKanbanLayout(graph.branches, graph.tasks, graph.dependencies, hideDoneTasks);
   }, [graph, hideDoneTasks]);
 
@@ -57,6 +68,19 @@ export function KanbanBoard() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
   const [addingBranch, setAddingBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+
+  const moveColumn = useCallback(
+    (branchId: string, direction: "left" | "right") => {
+      if (!graph) return;
+      const ids = sortedBranches.map((b) => b.id);
+      const idx = ids.indexOf(branchId);
+      const swapIdx = direction === "left" ? idx - 1 : idx + 1;
+      if (idx < 0 || swapIdx < 0 || swapIdx >= ids.length) return;
+      [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
+      void reorderBranches(ids);
+    },
+    [graph, sortedBranches, reorderBranches],
+  );
 
   useEffect(() => {
     if (!graph) return;
@@ -67,6 +91,8 @@ export function KanbanBoard() {
         graph.tasks.filter((t) => t.branchId === b.id && t.status !== "inbox").length,
       ]),
     );
+
+    const columnIndexByBranch = new Map(sortedBranches.map((b, i) => [b.id, i]));
 
     setNodes(
       layout.nodes.map((node) => {
@@ -106,12 +132,17 @@ export function KanbanBoard() {
         }
         if (node.type === "branchHeader") {
           const branchId = (node.data as { branchId: string }).branchId;
+          const colIdx = columnIndexByBranch.get(branchId) ?? 0;
           return {
             ...node,
-            draggable: true,
+            draggable: false,
             data: {
               ...node.data,
               taskCount: branchTaskCounts.get(branchId) ?? 0,
+              canMoveLeft: colIdx > 0,
+              canMoveRight: colIdx < sortedBranches.length - 1,
+              onMoveLeft: () => moveColumn(branchId, "left"),
+              onMoveRight: () => moveColumn(branchId, "right"),
               onRename: (id: string, name: string) => void renameBranch(id, name),
               onArchive: (id: string) => void archiveBranch(id),
               onDelete: (id: string, count: number) => {
@@ -136,17 +167,19 @@ export function KanbanBoard() {
             },
           };
         }
-        return node;
+        return { ...node, draggable: false };
       }),
     );
     setEdges(layout.edges);
   }, [
     layout,
     graph,
+    sortedBranches,
     setNodes,
     setEdges,
     activeProjectId,
     topRecommendationId,
+    moveColumn,
     selectTask,
     completeTask,
     activateTask,
@@ -167,26 +200,6 @@ export function KanbanBoard() {
         .then(() => refreshAll());
     },
     [activeProjectId, refreshAll],
-  );
-
-  const onNodeDragStop = useCallback(
-    (_event: React.MouseEvent, node: { type?: string }) => {
-      if (node.type !== "branchHeader" || !graph) return;
-
-      const headers = nodes.filter((n) => n.type === "branchHeader");
-      const sorted = [...headers].sort((a, b) => a.position.x - b.position.x);
-      const branchIds = sorted.map((n) => (n.data as { branchId: string }).branchId);
-      const currentIds = [...graph.branches]
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((b) => b.id);
-
-      if (branchIds.join() !== currentIds.join()) {
-        void reorderBranches(branchIds);
-      } else {
-        void refreshAll();
-      }
-    },
-    [nodes, graph, reorderBranches, refreshAll],
   );
 
   if (!graph) {
@@ -229,53 +242,47 @@ export function KanbanBoard() {
     );
   }
 
+  const { totalWidth, totalHeight } = layout.metrics;
+
   return (
     <div
       className="kanban-board"
-      style={{
-        minWidth: layout.metrics.totalWidth,
-        minHeight: layout.metrics.totalHeight,
-      }}
+      style={{ width: totalWidth, height: totalHeight }}
     >
-      <div
-        className="kanban-board__columns-bg"
-        style={{ width: layout.metrics.totalWidth }}
-      >
-        {graph.branches
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((branch) => (
-            <div
-              key={branch.id}
-              className="kanban-board__column-bg"
-              style={{ width: COLUMN_WIDTH }}
-            />
-          ))}
-      </div>
+      {sortedBranches.map((branch, columnIndex) => (
+        <div
+          key={branch.id}
+          className="kanban-board__column-bg"
+          style={{
+            left: columnIndex * COLUMN_WIDTH,
+            width: COLUMN_WIDTH,
+            height: totalHeight,
+          }}
+        />
+      ))}
       <ReactFlow
-        style={{ width: "100%", height: "100%" }}
+        width={totalWidth}
+        height={totalHeight}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        nodesDraggable
+        defaultViewport={LOCKED_VIEWPORT}
+        minZoom={1}
+        maxZoom={1}
+        panOnDrag={false}
+        panOnScroll={false}
+        zoomOnScroll={false}
+        zoomOnPinch={false}
+        zoomOnDoubleClick={false}
+        nodesDraggable={false}
         nodesConnectable
-        fitView
-        fitViewOptions={{ padding: 0.15 }}
-        minZoom={0.35}
-        maxZoom={1.25}
         proOptions={{ hideAttribution: true }}
       >
         <BlockingEdgeMarker />
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1}
-          color="var(--border-subtle)"
-        />
       </ReactFlow>
     </div>
   );
