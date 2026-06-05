@@ -105,6 +105,10 @@ export function claimTask(taskId: string, laneId: string, projectId: string): Pr
   return invoke("claim_task", { taskId, laneId, projectId });
 }
 
+export function postponeTask(taskId: string, laneId: string, projectId: string): Promise<Task> {
+  return invoke("postpone_task", { taskId, laneId, projectId });
+}
+
 export function startExternalTask(
   taskId: string,
   projectId: string,

@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Bot, Pause, Play } from "lucide-react";
+import { Archive, Bot, Clock, Play } from "lucide-react";
 import { useState } from "react";
 
 import type { TodayTaskContext } from "../../types";
@@ -10,16 +10,18 @@ import { TaskCardStatus } from "./TaskCardStatus";
 import { stopCardDrag } from "./taskCardDrag";
 import { cardWidth, formatEstimate } from "./taskBlockUtils";
 
-type StatusKind = "active" | "claimable" | "pending" | "queued";
+type StatusKind = "active" | "claimable" | "pending" | "queued" | "postponed";
 
 function statusKind(
   isActive: boolean,
   showClaim: boolean,
   isPending: boolean,
+  isPostponed: boolean,
 ): StatusKind {
   if (isActive) return "active";
   if (showClaim) return "claimable";
   if (isPending) return "pending";
+  if (isPostponed) return "postponed";
   return "queued";
 }
 
@@ -41,7 +43,7 @@ export function TaskBlock({
   blockerTitles?: string[];
 }) {
   const claimTask = useAppStore((s) => s.claimTask);
-  const pauseTask = useAppStore((s) => s.pauseTask);
+  const postponeTask = useAppStore((s) => s.postponeTask);
   const archiveTask = useAppStore((s) => s.archiveTask);
   const [externalOpen, setExternalOpen] = useState(false);
 
@@ -50,7 +52,8 @@ export function TaskBlock({
     data: { task: ctx, laneId, taskId: ctx.task.id },
   });
 
-  const kind = statusKind(isActive, showClaim, isPending);
+  const isPostponed = ctx.task.postponed && ctx.task.status === "ready";
+  const kind = statusKind(isActive, showClaim, isPending, isPostponed);
   const meta = [ctx.projectName, ctx.branchName].filter(Boolean).join(" · ");
   const blockerLabel =
     blockerTitles.length > 0
@@ -70,7 +73,7 @@ export function TaskBlock({
     transform: CSS.Transform.toString(transform),
     transition,
     width: cardWidth(),
-    opacity: isDragging ? 0.4 : isPending ? 0.75 : 1,
+    opacity: isDragging ? 0.4 : isPending ? 0.75 : isPostponed ? 0.85 : 1,
   };
 
   return (
@@ -95,18 +98,19 @@ export function TaskBlock({
           {metaLine ? <div className="task-card__meta">{metaLine}</div> : null}
 
           <div className="task-card__actions">
-            {isActive && (
+            {isActive && !isWatch && (
               <button
                 type="button"
-                className="task-card__action"
-                aria-label="暂停"
+                className="task-card__action task-card__action--postpone"
+                aria-label="稍后"
+                title="稍后再做，先做泳道里其他任务"
                 onPointerDown={stopCardDrag}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void pauseTask(ctx.task.id, ctx.projectId);
+                  void postponeTask(ctx.task.id, laneId, ctx.projectId);
                 }}
               >
-                <Pause size={12} />
+                <Clock size={12} />
               </button>
             )}
             {showClaim && !isActive && (
@@ -120,6 +124,19 @@ export function TaskBlock({
                 }}
               >
                 <Play size={12} />
+              </button>
+            )}
+            {isPostponed && !showClaim && (
+              <button
+                type="button"
+                className="task-card__action task-card__action--resume"
+                onPointerDown={stopCardDrag}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void claimTask(ctx.task.id, laneId, ctx.projectId);
+                }}
+              >
+                现在做
               </button>
             )}
             {canDelegate && (

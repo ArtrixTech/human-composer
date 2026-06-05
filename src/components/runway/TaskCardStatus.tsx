@@ -3,6 +3,7 @@ export type TaskCardStatusKind =
   | "claimable"
   | "pending"
   | "queued"
+  | "postponed"
   | "external"
   | "review";
 
@@ -10,6 +11,7 @@ const STATUS_LABEL: Partial<Record<TaskCardStatusKind, string>> = {
   active: "进行中",
   claimable: "可领取",
   pending: "等待",
+  postponed: "稍后",
   external: "外部",
   review: "待审核",
 };

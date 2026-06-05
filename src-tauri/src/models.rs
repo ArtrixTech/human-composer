@@ -143,6 +143,7 @@ pub struct Task {
     pub external_note: Option<String>,
     pub priority: Option<i32>,
     pub archived: bool,
+    pub postponed: bool,
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
 }

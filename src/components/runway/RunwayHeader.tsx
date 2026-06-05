@@ -1,4 +1,4 @@
-import { Check, CheckCircle2, ChevronDown, Pause, Play } from "lucide-react";
+import { Check, CheckCircle2, ChevronDown, Clock, Play } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import type { DayRunwaySnapshot } from "../../types";
@@ -21,7 +21,7 @@ export function RunwayHeader({
 }) {
   const claimTask = useAppStore((s) => s.claimTask);
   const completeTask = useAppStore((s) => s.completeTask);
-  const pauseTask = useAppStore((s) => s.pauseTask);
+  const postponeTask = useAppStore((s) => s.postponeTask);
   const completeExternal = useAppStore((s) => s.completeExternal);
   const reviewExternal = useAppStore((s) => s.reviewExternal);
 
@@ -82,10 +82,12 @@ export function RunwayHeader({
         <button
           type="button"
           className="runway-header__cta runway-header__cta--ghost"
-          aria-label="暂停"
-          onClick={() => void pauseTask(primary.ctx.task.id, primary.ctx.projectId)}
+          title="稍后再做，先做泳道里其他任务"
+          onClick={() =>
+            void postponeTask(primary.ctx.task.id, primary.laneId, primary.ctx.projectId)
+          }
         >
-          <Pause size={12} />
+          <Clock size={12} /> 稍后
         </button>
       </>
     );

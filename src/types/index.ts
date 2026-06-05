@@ -36,6 +36,7 @@ export interface Task {
   externalNote: string | null;
   priority: number | null;
   archived: boolean;
+  postponed: boolean;
   createdAt: string;
   completedAt: string | null;
 }

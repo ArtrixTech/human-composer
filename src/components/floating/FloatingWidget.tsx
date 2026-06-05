@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, ExternalLink, Pause, Play } from "lucide-react";
+import { Bot, Check, ChevronDown, Clock, ExternalLink, Play } from "lucide-react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 
@@ -11,6 +11,7 @@ import {
   isExternalActive,
 } from "../runway/runwayTaskUtils";
 import { formatMinutesTotal } from "../runway/taskBlockUtils";
+import { ExternalTaskDialog } from "../runway/ExternalTaskDialog";
 import "./FloatingWidget.css";
 
 function focusActiveTasks(snapshot: DayRunwaySnapshot | null): TodayTaskContext[] {
@@ -73,6 +74,10 @@ export function FloatingWidget() {
   const [branchSuggestion, setBranchSuggestion] = useState<BranchSuggestion | null>(null);
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [delegateTarget, setDelegateTarget] = useState<{
+    ctx: TodayTaskContext;
+    laneId: string;
+  } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -121,7 +126,7 @@ export function FloatingWidget() {
     if (next) {
       await win.setSize(new LogicalSize(320, phase === "picking" ? 460 : 420));
     } else {
-      await win.setSize(new LogicalSize(280, 52));
+      await win.setSize(new LogicalSize(300, 52));
       resetPick();
     }
   };
@@ -155,8 +160,17 @@ export function FloatingWidget() {
     if (!expanded) void resize(true);
   };
 
-  const pause = async (ctx: TodayTaskContext) => {
-    await api.setTaskStatus(ctx.projectId, ctx.task.id, "ready");
+  const postpone = async (ctx: TodayTaskContext, laneId: string) => {
+    await api.postponeTask(ctx.task.id, laneId, ctx.projectId);
+    setSnapshot(await api.getDayRunwaySnapshot());
+    showFeedback("已标记稍后");
+  };
+
+  const openDelegate = (ctx: TodayTaskContext, laneId: string) => {
+    setDelegateTarget({ ctx, laneId });
+  };
+
+  const refreshSnapshot = async () => {
     setSnapshot(await api.getDayRunwaySnapshot());
   };
 
@@ -223,39 +237,81 @@ export function FloatingWidget() {
           : "floating__dot--idle";
 
     return (
-      <div
-        className="floating floating--collapsed"
-        data-tauri-drag-region
-        onMouseDown={onBackgroundMouseDown}
-      >
-        <span className={`floating__dot ${dotClass}`} />
-        <div className="floating__collapsed-main">
-          <span className="floating__task-name">{label}</span>
-          {laneName && <span className="floating__lane-name">{laneName}</span>}
+      <>
+        <div
+          className="floating floating--collapsed"
+          data-tauri-drag-region
+          onMouseDown={onBackgroundMouseDown}
+        >
+          <span className={`floating__dot ${dotClass}`} />
+          <div className="floating__collapsed-main">
+            <span className="floating__task-name">{label}</span>
+            {laneName && <span className="floating__lane-name">{laneName}</span>}
+          </div>
+          {needsReviewCount > 0 && (
+            <span className="floating__badge">{needsReviewCount}</span>
+          )}
+          {primary && primaryLane && (
+            <div className="floating__quick-actions">
+              <button
+                type="button"
+                className="floating__icon-btn floating__icon-btn--done"
+                title="完成"
+                aria-label="完成"
+                onClick={() => void complete(primary)}
+              >
+                <Check size={14} />
+              </button>
+              <button
+                type="button"
+                className="floating__icon-btn floating__icon-btn--postpone"
+                title="稍后再做"
+                aria-label="稍后"
+                onClick={() => void postpone(primary, primaryLane.lane.id)}
+              >
+                <Clock size={14} />
+              </button>
+              {primary.task.taskType === "normal" && primaryLane.lane.laneType !== "watch" && (
+                <button
+                  type="button"
+                  className="floating__icon-btn floating__icon-btn--delegate"
+                  title="委派外部执行"
+                  aria-label="委派"
+                  onClick={() => openDelegate(primary, primaryLane.lane.id)}
+                >
+                  <Bot size={14} />
+                </button>
+              )}
+            </div>
+          )}
+          {!primary && claimable && (
+            <button
+              type="button"
+              className="floating__icon-btn floating__icon-btn--claim"
+              title="领取"
+              aria-label="领取"
+              onClick={() =>
+                void claim(claimable.ctx.task.id, claimable.laneId, claimable.ctx.projectId)
+              }
+            >
+              <Play size={14} />
+            </button>
+          )}
+          <button type="button" className="floating__icon-btn" onClick={() => void resize(true)}>
+            <ChevronDown size={14} />
+          </button>
         </div>
-        {needsReviewCount > 0 && (
-          <span className="floating__badge">{needsReviewCount}</span>
+        {delegateTarget && (
+          <ExternalTaskDialog
+            ctx={delegateTarget.ctx}
+            laneId={delegateTarget.laneId}
+            onClose={() => {
+              setDelegateTarget(null);
+              void refreshSnapshot();
+            }}
+          />
         )}
-        {primary && (
-          <button type="button" className="floating__icon-btn floating__icon-btn--done" onClick={() => void complete(primary)}>
-            <Check size={14} />
-          </button>
-        )}
-        {!primary && claimable && (
-          <button
-            type="button"
-            className="floating__icon-btn floating__icon-btn--claim"
-            onClick={() =>
-              void claim(claimable.ctx.task.id, claimable.laneId, claimable.ctx.projectId)
-            }
-          >
-            <Play size={14} />
-          </button>
-        )}
-        <button type="button" className="floating__icon-btn" onClick={() => void resize(true)}>
-          <ChevronDown size={14} />
-        </button>
-      </div>
+      </>
     );
   }
 
@@ -302,13 +358,38 @@ export function FloatingWidget() {
                 <div className="floating__lane-row">
                   <span className="floating__lane-task">{task.task.title}</span>
                   {state === "active" && (
-                    <div className="floating__lane-actions">
-                      <button type="button" className="floating__cta" onClick={() => void complete(task)}>
-                        完成
+                    <div className="floating__lane-actions floating__quick-actions">
+                      <button
+                        type="button"
+                        className="floating__icon-btn floating__icon-btn--done"
+                        title="完成"
+                        aria-label="完成"
+                        onClick={() => void complete(task)}
+                      >
+                        <Check size={14} />
                       </button>
-                      <button type="button" className="floating__cta floating__cta--ghost" onClick={() => void pause(task)}>
-                        <Pause size={12} />
-                      </button>
+                      {!isWatch && (
+                        <button
+                          type="button"
+                          className="floating__icon-btn floating__icon-btn--postpone"
+                          title="稍后再做"
+                          aria-label="稍后"
+                          onClick={() => void postpone(task, lane.lane.id)}
+                        >
+                          <Clock size={14} />
+                        </button>
+                      )}
+                      {!isWatch && task.task.taskType === "normal" && (
+                        <button
+                          type="button"
+                          className="floating__icon-btn floating__icon-btn--delegate"
+                          title="委派外部执行"
+                          aria-label="委派"
+                          onClick={() => openDelegate(task, lane.lane.id)}
+                        >
+                          <Bot size={14} />
+                        </button>
+                      )}
                     </div>
                   )}
                   {state === "claimable" && (
@@ -380,6 +461,17 @@ export function FloatingWidget() {
         )}
         {feedback && <p className="floating__feedback">{feedback}</p>}
       </footer>
+
+      {delegateTarget && (
+        <ExternalTaskDialog
+          ctx={delegateTarget.ctx}
+          laneId={delegateTarget.laneId}
+          onClose={() => {
+            setDelegateTarget(null);
+            void refreshSnapshot();
+          }}
+        />
+      )}
     </div>
   );
 }

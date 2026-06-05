@@ -5,7 +5,7 @@ import { buildBlockerMap, hasDependencyEdge } from "./dependencyUtils";
 import { DependencyConnector } from "./DependencyConnector";
 import { ExternalTaskBlock } from "./ExternalTaskBlock";
 import { TaskBlock } from "./TaskBlock";
-import { isExternalActive } from "./runwayTaskUtils";
+import { isExternalActive, findFirstClaimableIndex } from "./runwayTaskUtils";
 
 export function LaneTrack({
   laneId,
@@ -20,9 +20,7 @@ export function LaneTrack({
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
 
-  const firstReadyIdx = tasks.findIndex(
-    (t) => t.task.status === "ready" && !isExternalActive(t),
-  );
+  const firstReadyIdx = findFirstClaimableIndex(tasks);
   const tasksById = new Map(tasks.map((t) => [t.task.id, t]));
   const blockerMap = buildBlockerMap(dependencies, tasksById);
 

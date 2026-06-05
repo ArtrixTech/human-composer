@@ -124,6 +124,7 @@ pub fn run() {
             commands::reorder_lane_tasks,
             commands::move_task_between_lanes,
             commands::claim_task,
+            commands::postpone_task,
             commands::start_external_task,
             commands::complete_external_task,
             commands::review_external_task,

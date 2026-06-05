@@ -131,4 +131,13 @@
 - **底部整合**：`ProjectFooterBar` 合并已归档支线/任务 popover；toolbar ghost 按钮；Inbox compact row + fixed popover 分配
 - **间距统一**：Header / Toolbar / Board / Inbox 均使用 `--page-padding-x: 16px`
 
-**Commit:** `067b216`
+**Commit:** `a95d362`
+
+## 2026-06-04 — Runway「稍后」让位
+
+- **数据层**：`tasks.postponed` 布尔字段；`postpone_task` API；`claim_task` 同泳道顶替时自动标记稍后，领取时清除 flag
+- **领取队列**：`isClaimCandidate` 跳过 postponed ready；lane 内仅剩 postponed 时 fallback 仍可领取
+- **UI**：RunwayHeader / TaskBlock / FloatingWidget 将「暂停」改为「稍后」；postponed 卡片 badge +「现在做」；Project Kanban 仍用 `pauseTask`
+- **悬浮窗**：折叠/展开态补齐完成、稍后、委派快速图标；委派复用 ExternalTaskDialog
+
+**Commit:** _(pending)_

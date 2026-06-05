@@ -31,6 +31,24 @@ export function isExternalActive(ctx: TodayTaskContext): boolean {
   );
 }
 
+/** Ready task eligible for claim (skips postponed unless fallback). */
+export function isClaimCandidate(ctx: TodayTaskContext): boolean {
+  return (
+    ctx.task.status === "ready" &&
+    !ctx.task.postponed &&
+    !isExternalActive(ctx)
+  );
+}
+
+/** Index of the next claimable task in a lane; falls back to first postponed ready. */
+export function findFirstClaimableIndex(tasks: TodayTaskContext[]): number {
+  const candidate = tasks.findIndex(isClaimCandidate);
+  if (candidate >= 0) return candidate;
+  return tasks.findIndex(
+    (t) => t.task.status === "ready" && !isExternalActive(t),
+  );
+}
+
 /** All focus-active tasks across all lanes, in lane order. */
 export function findFocusActives(snapshot: DayRunwaySnapshot): LaneCtx[] {
   const result: LaneCtx[] = [];
@@ -71,10 +89,10 @@ export function findNeedsReview(snapshot: DayRunwaySnapshot): LaneCtx[] {
 export function findFirstClaimable(snapshot: DayRunwaySnapshot): LaneCtx | null {
   for (const lane of snapshot.lanes) {
     if (lane.lane.laneType === "watch") continue;
-    const ready = lane.tasks.find(
-      (t) => t.task.status === "ready" && !isExternalActive(t),
-    );
-    if (ready) return { ctx: ready, laneId: lane.lane.id, laneName: lane.lane.name };
+    const idx = findFirstClaimableIndex(lane.tasks);
+    if (idx >= 0) {
+      return { ctx: lane.tasks[idx], laneId: lane.lane.id, laneName: lane.lane.name };
+    }
   }
   return null;
 }

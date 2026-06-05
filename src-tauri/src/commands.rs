@@ -222,6 +222,23 @@ pub fn claim_task(
 }
 
 #[tauri::command]
+pub fn postpone_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    lane_id: String,
+    project_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.postpone_task(&task_id, &lane_id)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
 pub fn start_external_task(
     app: AppHandle,
     state: State<'_, AppState>,

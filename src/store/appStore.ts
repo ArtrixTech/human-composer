@@ -13,6 +13,7 @@ import type {
   TodayTaskContext,
 } from "../types";
 import { useToastStore } from "./toastStore";
+import { findFirstClaimable, isClaimCandidate } from "../components/runway/runwayTaskUtils";
 
 interface AppStore {
   projects: ProjectSummary[];
@@ -65,6 +66,7 @@ interface AppStore {
     position?: number,
   ) => Promise<void>;
   claimTask: (taskId: string, laneId: string, projectId: string) => Promise<void>;
+  postponeTask: (taskId: string, laneId: string, projectId: string) => Promise<void>;
   startExternal: (
     taskId: string,
     projectId: string,
@@ -331,13 +333,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  postponeTask: async (taskId, laneId, projectId) => {
+    const title =
+      get().runwaySnapshot?.lanes
+        .flatMap((l) => l.tasks)
+        .find((t) => t.task.id === taskId)?.task.title ?? "任务";
+    await api.postponeTask(taskId, laneId, projectId);
+    await get().refreshAll();
+    const snapshot = get().runwaySnapshot;
+    const next = snapshot ? findFirstClaimable(snapshot) : null;
+    useToastStore.getState().push({
+      message: next
+        ? `「${title}」已标记稍后 · 可领取「${next.ctx.task.title}」`
+        : `「${title}」已标记稍后`,
+    });
+  },
+
   startExternal: async (taskId, projectId, laneId, minutes, note) => {
     await api.startExternalTask(taskId, projectId, minutes, note, laneId);
     await get().refreshAll();
     // Check if there is a claimable task in a focus lane to surface to the user
     const snapshot = get().runwaySnapshot;
     const hasClaimable = snapshot?.lanes.some(
-      (l) => l.lane.laneType === "focus" && l.tasks.some((t) => t.task.status === "ready"),
+      (l) => l.lane.laneType === "focus" && l.tasks.some(isClaimCandidate),
     );
     useToastStore.getState().push({
       message: hasClaimable

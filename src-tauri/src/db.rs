@@ -106,6 +106,7 @@ impl Database {
         self.ensure_column("tasks", "external_note", "TEXT")?;
         self.ensure_column("tasks", "priority", "INTEGER")?;
         self.ensure_column("tasks", "archived", "INTEGER NOT NULL DEFAULT 0")?;
+        self.ensure_column("tasks", "postponed", "INTEGER NOT NULL DEFAULT 0")?;
 
         if self.get_setting("day_end_time")?.is_none() {
             self.set_setting("day_end_time", DEFAULT_DAY_END)?;
@@ -139,13 +140,14 @@ impl Database {
             external_note: row.get(15)?,
             priority: row.get(16)?,
             archived: row.get::<_, i32>(17)? != 0,
+            postponed: row.get::<_, i32>(18)? != 0,
         })
     }
 
     const TASK_SELECT: &'static str = "SELECT id, project_id, branch_id, title, description, status,
                     sort_order, pinned, estimated_minutes, created_at, completed_at,
                     task_type, external_status, external_started_at, external_completed_at, external_note,
-                    priority, archived";
+                    priority, archived, postponed";
 
     fn ensure_column(&self, table: &str, column: &str, definition: &str) -> rusqlite::Result<()> {
         let mut stmt = self
@@ -474,8 +476,13 @@ impl Database {
 
         if status == TaskStatus::Done {
             self.conn.execute(
-                "UPDATE tasks SET status = ?1, completed_at = ?2 WHERE id = ?3",
+                "UPDATE tasks SET status = ?1, completed_at = ?2, postponed = 0 WHERE id = ?3",
                 params![status.as_str(), completed_at, task_id],
+            )?;
+        } else if status == TaskStatus::Active {
+            self.conn.execute(
+                "UPDATE tasks SET status = ?1, completed_at = NULL, postponed = 0 WHERE id = ?2",
+                params![status.as_str(), task_id],
             )?;
         } else {
             self.conn.execute(
@@ -566,10 +573,43 @@ impl Database {
                 // Do not pause externally-delegated or needs-review tasks; they run independently
                 if task.status == TaskStatus::Active && !runway::is_external_active(&task) {
                     self.set_task_status(&other_id, TaskStatus::Ready)?;
+                    self.set_task_postponed(&other_id, true)?;
                 }
             }
         }
+        self.set_task_postponed(task_id, false)?;
         self.set_task_status(task_id, TaskStatus::Active)
+    }
+
+    pub fn postpone_task(&self, task_id: &str, lane_id: &str) -> rusqlite::Result<Task> {
+        let lane_task_ids = self.get_lane_task_ids(lane_id)?;
+        if !lane_task_ids.iter().any(|id| id == task_id) {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "task not in lane".into(),
+            ));
+        }
+        let task = self.get_task(task_id)?;
+        if task.status != TaskStatus::Active {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "task is not active".into(),
+            ));
+        }
+        if runway::is_external_active(&task) {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "external tasks cannot be postponed".into(),
+            ));
+        }
+        self.set_task_status(task_id, TaskStatus::Ready)?;
+        self.set_task_postponed(task_id, true)?;
+        self.get_task(task_id)
+    }
+
+    fn set_task_postponed(&self, task_id: &str, postponed: bool) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "UPDATE tasks SET postponed = ?1 WHERE id = ?2",
+            params![if postponed { 1 } else { 0 }, task_id],
+        )?;
+        Ok(())
     }
 
     pub fn assign_task_to_branch(&self, task_id: &str, branch_id: &str) -> rusqlite::Result<Task> {
