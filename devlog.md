@@ -147,4 +147,4 @@
 - **Kanban 支线菜单**：`BranchColumnHeader` 下拉改用 portal + fixed 定位，避免被 board scroll 裁切；列背景/header 使用 `--bg-surface`；React Flow 节点层 `overflow: visible`
 - **悬浮窗分配**：快速添加后支线选择按项目分组展示，推荐高亮限定在创建任务所属项目
 
-**Commit:** _(pending)_
+**Commit:** `ae874f9`
