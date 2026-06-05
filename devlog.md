@@ -154,4 +154,4 @@
 - **macOS 失焦拖动**：floating 窗口配置 `acceptFirstMouse: true`，首次点击即可拖动，无需先手动 focus
 - **拖动区域**：移除全局 `-webkit-app-region: drag`（会干扰滚动与按钮）；折叠态任务信息区、展开态 header meta 使用 `data-tauri-drag-region="deep"`，点击子元素也能触发拖动
 
-**Commit:** _(pending)_
+**Commit:** `e2f4322`
