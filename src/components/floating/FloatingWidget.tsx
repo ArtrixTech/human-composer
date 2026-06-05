@@ -236,12 +236,6 @@ export function FloatingWidget() {
     inputRef.current?.focus();
   };
 
-  const onBackgroundMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest("button, input, textarea, a, select")) return;
-    void getCurrentWindow().startDragging();
-  };
-
   if (!expanded) {
     const label = primary?.task.title ?? claimable?.ctx.task.title ?? "选择任务…";
     const laneName = primaryLane?.lane.name ?? claimable?.laneId
@@ -257,19 +251,17 @@ export function FloatingWidget() {
 
     return (
       <>
-        <div
-          className="floating floating--collapsed"
-          data-tauri-drag-region
-          onMouseDown={onBackgroundMouseDown}
-        >
-          <span className={`floating__dot ${dotClass}`} />
-          <div className="floating__collapsed-main">
-            <span className="floating__task-name">{label}</span>
-            {laneName && <span className="floating__lane-name">{laneName}</span>}
+        <div className="floating floating--collapsed">
+          <div className="floating__drag-zone" data-tauri-drag-region="deep">
+            <span className={`floating__dot ${dotClass}`} />
+            <div className="floating__collapsed-main">
+              <span className="floating__task-name">{label}</span>
+              {laneName && <span className="floating__lane-name">{laneName}</span>}
+            </div>
+            {needsReviewCount > 0 && (
+              <span className="floating__badge">{needsReviewCount}</span>
+            )}
           </div>
-          {needsReviewCount > 0 && (
-            <span className="floating__badge">{needsReviewCount}</span>
-          )}
           {primary && primaryLane && (
             <div className="floating__quick-actions">
               <button
@@ -335,13 +327,9 @@ export function FloatingWidget() {
   }
 
   return (
-    <div
-      className="floating floating--expanded"
-      data-tauri-drag-region
-      onMouseDown={onBackgroundMouseDown}
-    >
+    <div className="floating floating--expanded">
       <header className="floating__header">
-        <div className="floating__header-meta">
+        <div className="floating__header-meta floating__drag-zone" data-tauri-drag-region="deep">
           <span>{dateStr}</span>
           {finishHint && <span className="floating__header-budget">{finishHint}</span>}
           {snapshot?.timeBudget.remainingMinutes != null && snapshot.timeBudget.remainingMinutes > 0 && (

@@ -148,3 +148,10 @@
 - **悬浮窗分配**：快速添加后支线选择按项目分组展示，推荐高亮限定在创建任务所属项目
 
 **Commit:** `ae874f9`
+
+## 2026-06-05 — 悬浮窗拖动修复
+
+- **macOS 失焦拖动**：floating 窗口配置 `acceptFirstMouse: true`，首次点击即可拖动，无需先手动 focus
+- **拖动区域**：移除全局 `-webkit-app-region: drag`（会干扰滚动与按钮）；折叠态任务信息区、展开态 header meta 使用 `data-tauri-drag-region="deep"`，点击子元素也能触发拖动
+
+**Commit:** _(pending)_

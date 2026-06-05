@@ -18,8 +18,15 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   user-select: none;
   -webkit-user-select: none;
-  -webkit-app-region: drag;
-  app-region: drag;
+}
+
+.floating__drag-zone {
+  cursor: grab;
+  touch-action: none;
+}
+
+.floating__drag-zone:active {
+  cursor: grabbing;
 }
 
 /* ── Collapsed ────────────────────────────────────────────────────────── */
@@ -28,9 +35,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
+  padding: 0 4px 0 10px;
   height: 100%;
   position: relative;
+}
+
+.floating--collapsed .floating__drag-zone {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 0;
+  height: 100%;
 }
 
 .floating__dot {
@@ -97,8 +114,6 @@
 }
 
 .floating__icon-btn {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
   width: 28px;
   height: 28px;
   display: flex;
@@ -130,8 +145,6 @@
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
 }
 
 .floating__icon-btn:hover {
@@ -149,8 +162,6 @@
   align-items: center;
   justify-content: center;
   z-index: 900;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
 }
 
 .external-dialog {
@@ -275,9 +286,12 @@
 .floating__header-actions {
   display: flex;
   gap: 4px;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
   flex-shrink: 0;
+}
+
+.floating__header .floating__drag-zone {
+  flex: 1;
+  min-width: 0;
 }
 
 .floating__header-actions button {
@@ -362,13 +376,9 @@
   display: flex;
   gap: 4px;
   flex-shrink: 0;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
 }
 
 .floating__cta {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
   padding: 4px 10px;
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
@@ -421,8 +431,6 @@
   font-size: var(--text-xs);
   user-select: text;
   -webkit-user-select: text;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
 }
 
 .floating__footer input:focus-visible {
