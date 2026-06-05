@@ -8,7 +8,7 @@
   position: absolute;
   top: 0;
   border-right: 1px solid var(--border-subtle);
-  background: transparent;
+  background: var(--bg-surface);
   pointer-events: none;
   z-index: 0;
 }
@@ -17,6 +17,19 @@
   position: absolute;
   inset: 0;
   z-index: 1;
+  background: transparent;
+}
+
+.kanban-board .react-flow__renderer,
+.kanban-board .react-flow__pane,
+.kanban-board .react-flow__viewport,
+.kanban-board .react-flow__nodes {
+  overflow: visible !important;
+}
+
+.kanban-board .react-flow__node {
+  overflow: visible !important;
+  background: transparent;
 }
 
 .kanban-board .react-flow__pane {

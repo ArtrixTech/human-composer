@@ -140,4 +140,11 @@
 - **UI**：RunwayHeader / TaskBlock / FloatingWidget 将「暂停」改为「稍后」；postponed 卡片 badge +「现在做」；Project Kanban 仍用 `pauseTask`
 - **悬浮窗**：折叠/展开态补齐完成、稍后、委派快速图标；委派复用 ExternalTaskDialog
 
+**Commit:** `874ed04`
+
+## 2026-06-05 — Kanban 菜单修复 + 悬浮窗支线按项目分组
+
+- **Kanban 支线菜单**：`BranchColumnHeader` 下拉改用 portal + fixed 定位，避免被 board scroll 裁切；列背景/header 使用 `--bg-surface`；React Flow 节点层 `overflow: visible`
+- **悬浮窗分配**：快速添加后支线选择按项目分组展示，推荐高亮限定在创建任务所属项目
+
 **Commit:** _(pending)_

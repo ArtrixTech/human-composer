@@ -54,6 +54,12 @@ const STATE_LABEL: Record<LaneState, string> = {
 
 type FooterPhase = "typing" | "picking";
 
+interface PickProjectGroup {
+  projectId: string;
+  projectName: string;
+  branches: Branch[];
+}
+
 async function resolveProjectId(): Promise<string | null> {
   try {
     const snap = await api.getAppSnapshot();
@@ -70,7 +76,8 @@ export function FloatingWidget() {
   const [expanded, setExpanded] = useState(false);
   const [title, setTitle] = useState("");
   const [phase, setPhase] = useState<FooterPhase>("typing");
-  const [pickBranches, setPickBranches] = useState<Branch[]>([]);
+  const [pickGroups, setPickGroups] = useState<PickProjectGroup[]>([]);
+  const [createProjectId, setCreateProjectId] = useState<string | null>(null);
   const [branchSuggestion, setBranchSuggestion] = useState<BranchSuggestion | null>(null);
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -115,7 +122,8 @@ export function FloatingWidget() {
 
   const resetPick = () => {
     setPhase("typing");
-    setPickBranches([]);
+    setPickGroups([]);
+    setCreateProjectId(null);
     setBranchSuggestion(null);
     setPendingTaskId(null);
   };
@@ -194,20 +202,31 @@ export function FloatingWidget() {
     }
     const result = await api.createTask(projectId, trimmed);
     setTitle("");
-    const graph = await api.getProjectGraph(projectId);
-    setPickBranches(graph.branches);
+    const projects = await api.listProjects();
+    const groups: PickProjectGroup[] = [];
+    for (const project of projects) {
+      const graph = await api.getProjectGraph(project.id);
+      if (graph.branches.length === 0) continue;
+      groups.push({
+        projectId: project.id,
+        projectName: project.name,
+        branches: graph.branches,
+      });
+    }
+    setPickGroups(groups);
+    setCreateProjectId(projectId);
     setBranchSuggestion(result.branchSuggestion ?? null);
     setPendingTaskId(result.task.id);
     setPhase("picking");
     void resize(true);
   };
 
-  const assignBranch = async (branchId: string, branchName: string) => {
+  const assignBranch = async (branchId: string, branchName: string, projectName: string) => {
     if (!pendingTaskId) return;
     await api.assignTaskToBranch(pendingTaskId, branchId);
     resetPick();
     setSnapshot(await api.getDayRunwaySnapshot());
-    showFeedback(`已分配到 ${branchName}`);
+    showFeedback(`已分配到 ${projectName} · ${branchName}`);
     inputRef.current?.focus();
   };
 
@@ -428,20 +447,35 @@ export function FloatingWidget() {
         {phase === "picking" ? (
           <div className="floating__pick">
             <p className="floating__pick-label">选择支线</p>
-            <div className="floating__pick-chips">
-              {pickBranches.map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  className={
-                    branchSuggestion?.branchId === b.id
-                      ? "floating__pick-chip floating__pick-chip--suggested"
-                      : "floating__pick-chip"
-                  }
-                  onClick={() => void assignBranch(b.id, b.name)}
-                >
-                  {b.name}
-                </button>
+            <div className="floating__pick-groups">
+              {pickGroups.map((group) => (
+                <section key={group.projectId} className="floating__pick-group">
+                  <h4
+                    className={`floating__pick-project ${group.projectId === createProjectId ? "floating__pick-project--source" : ""}`}
+                  >
+                    {group.projectName}
+                    {group.projectId === createProjectId && (
+                      <span className="floating__pick-project-tag">当前</span>
+                    )}
+                  </h4>
+                  <div className="floating__pick-chips">
+                    {group.branches.map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        className={
+                          branchSuggestion?.branchId === b.id &&
+                          group.projectId === createProjectId
+                            ? "floating__pick-chip floating__pick-chip--suggested"
+                            : "floating__pick-chip"
+                        }
+                        onClick={() => void assignBranch(b.id, b.name, group.projectName)}
+                      >
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
             <button type="button" className="floating__pick-skip" onClick={skipAssign}>

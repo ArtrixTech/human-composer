@@ -1,4 +1,5 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { NodeProps } from "@xyflow/react";
 import { MoreVertical } from "lucide-react";
 
@@ -19,6 +20,8 @@ export interface BranchColumnHeaderData {
   onMoveRight?: () => void;
   [key: string]: unknown;
 }
+
+const MENU_WIDTH = 128;
 
 function BranchColumnHeaderComponent({ data }: NodeProps) {
   const nodeData = data as BranchColumnHeaderData;
@@ -43,16 +46,40 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(label);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => setName(label), [label]);
+
+  const updateMenuPos = () => {
+    const rect = menuBtnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const left = Math.min(
+      Math.max(8, rect.right - MENU_WIDTH),
+      window.innerWidth - MENU_WIDTH - 8,
+    );
+    setMenuPos({ top: rect.bottom + 4, left });
+  };
+
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+    updateMenuPos();
+    window.addEventListener("resize", updateMenuPos);
+    window.addEventListener("scroll", updateMenuPos, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPos);
+      window.removeEventListener("scroll", updateMenuPos, true);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
     const close = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
+      const target = e.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      if (menuBtnRef.current?.contains(target)) return;
+      setMenuOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -82,87 +109,105 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
     if (window.confirm(msg)) void deleteBranch(branchId);
   };
 
-  return (
-    <div className="branch-column-header">
-      {editing ? (
-        <input
-          className="branch-column-header__input"
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitRename();
-            if (e.key === "Escape") {
-              setName(label);
-              setEditing(false);
-            }
-          }}
-        />
-      ) : (
-        <div className="branch-column-header__title">
-          <span className="branch-column-header__name">{label}</span>
-          {progress && <span className="branch-column-header__progress">{progress}</span>}
-        </div>
-      )}
-      <div className="branch-column-header__menu-wrap" ref={menuRef}>
-        <button
-          type="button"
-          className="branch-column-header__menu-btn"
-          aria-label="支线菜单"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMenuOpen((o) => !o);
-          }}
+  const menu = menuOpen && menuPos
+    ? createPortal(
+        <div
+          ref={menuRef}
+          className="branch-column-header__menu branch-column-header__menu--portal"
+          style={{ top: menuPos.top, left: menuPos.left }}
         >
-          <MoreVertical size={14} />
-        </button>
-        {menuOpen && (
-          <div className="branch-column-header__menu">
-            {canMoveLeft && onMoveLeft && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onMoveLeft();
-                }}
-              >
-                左移
-              </button>
-            )}
-            {canMoveRight && onMoveRight && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onMoveRight();
-                }}
-              >
-                右移
-              </button>
-            )}
-            <button type="button" onClick={() => { setMenuOpen(false); setEditing(true); }}>
-              重命名
-            </button>
+          {canMoveLeft && onMoveLeft && (
             <button
               type="button"
               onClick={() => {
                 setMenuOpen(false);
-                if (window.confirm(`归档支线「${label}」？`)) {
-                  if (onArchive) onArchive(branchId);
-                  else void archiveBranch(branchId);
-                }
+                onMoveLeft();
               }}
             >
-              归档
+              左移
             </button>
-            <button type="button" className="danger" onClick={confirmDelete}>
-              删除
+          )}
+          {canMoveRight && onMoveRight && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onMoveRight();
+              }}
+            >
+              右移
             </button>
+          )}
+          <button type="button" onClick={() => { setMenuOpen(false); setEditing(true); }}>
+            重命名
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              if (window.confirm(`归档支线「${label}」？`)) {
+                if (onArchive) onArchive(branchId);
+                else void archiveBranch(branchId);
+              }
+            }}
+          >
+            归档
+          </button>
+          <button type="button" className="danger" onClick={confirmDelete}>
+            删除
+          </button>
+        </div>,
+        document.body,
+      )
+    : null;
+
+  return (
+    <>
+      <div className="branch-column-header">
+        {editing ? (
+          <input
+            className="branch-column-header__input"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") {
+                setName(label);
+                setEditing(false);
+              }
+            }}
+          />
+        ) : (
+          <div className="branch-column-header__title">
+            <span className="branch-column-header__name">{label}</span>
+            {progress && <span className="branch-column-header__progress">{progress}</span>}
           </div>
         )}
+        <div className="branch-column-header__menu-wrap">
+          <button
+            ref={menuBtnRef}
+            type="button"
+            className="branch-column-header__menu-btn"
+            aria-label="支线菜单"
+            aria-expanded={menuOpen}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (menuOpen) {
+                setMenuOpen(false);
+                return;
+              }
+              updateMenuPos();
+              setMenuOpen(true);
+            }}
+          >
+            <MoreVertical size={14} />
+          </button>
+        </div>
       </div>
-    </div>
+      {menu}
+    </>
   );
 }
 
