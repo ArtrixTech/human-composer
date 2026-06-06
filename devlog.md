@@ -160,4 +160,4 @@
 
 - 折叠/展开态拖动区域双击调用 `showMainWindow`，并 emit `main-show-today` 切换主窗口至今日安排视图
 
-**Commit:** _(pending)_
+**Commit:** `55875e1`
