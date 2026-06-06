@@ -5,6 +5,7 @@ import type { AppSnapshot, DayRunwaySnapshot } from "../types";
 import { getFirstActiveTask, useAppStore } from "../store/appStore";
 
 export function useGraphSync() {
+  const selectTodayView = useAppStore((s) => s.selectTodayView);
   const applySnapshot = useAppStore((s) => s.applySnapshot);
   const applyRunwaySnapshot = useAppStore((s) => s.applyRunwaySnapshot);
   const setCommandOpen = useAppStore((s) => s.setCommandOpen);
@@ -31,6 +32,7 @@ export function useGraphSync() {
     );
     unsubs.push(listen("shortcut-command-palette", () => setCommandOpen(true)));
     unsubs.push(listen("shortcut-quick-add", () => setCommandOpen(true)));
+    unsubs.push(listen("main-show-today", () => void selectTodayView()));
     unsubs.push(
       listen("shortcut-complete-task", () => {
         const active = getFirstActiveTask();
@@ -53,7 +55,7 @@ export function useGraphSync() {
       window.removeEventListener("keydown", onKey);
       void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
     };
-  }, [applySnapshot, applyRunwaySnapshot, setCommandOpen, completeActive]);
+  }, [applySnapshot, applyRunwaySnapshot, setCommandOpen, completeActive, selectTodayView]);
 
   return runwaySnapshot;
 }

@@ -155,3 +155,9 @@
 - **拖动区域**：移除全局 `-webkit-app-region: drag`（会干扰滚动与按钮）；折叠态任务信息区、展开态 header meta 使用 `data-tauri-drag-region="deep"`，点击子元素也能触发拖动
 
 **Commit:** `e2f4322`
+
+## 2026-06-05 — 悬浮窗双击打开主页
+
+- 折叠/展开态拖动区域双击调用 `showMainWindow`，并 emit `main-show-today` 切换主窗口至今日安排视图
+
+**Commit:** _(pending)_

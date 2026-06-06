@@ -236,6 +236,8 @@ export function FloatingWidget() {
     inputRef.current?.focus();
   };
 
+  const openMainApp = () => void api.showMainWindow();
+
   if (!expanded) {
     const label = primary?.task.title ?? claimable?.ctx.task.title ?? "选择任务…";
     const laneName = primaryLane?.lane.name ?? claimable?.laneId
@@ -252,7 +254,12 @@ export function FloatingWidget() {
     return (
       <>
         <div className="floating floating--collapsed">
-          <div className="floating__drag-zone" data-tauri-drag-region="deep">
+          <div
+            className="floating__drag-zone"
+            data-tauri-drag-region="deep"
+            onDoubleClick={openMainApp}
+            title="双击打开主窗口"
+          >
             <span className={`floating__dot ${dotClass}`} />
             <div className="floating__collapsed-main">
               <span className="floating__task-name">{label}</span>
@@ -329,7 +336,12 @@ export function FloatingWidget() {
   return (
     <div className="floating floating--expanded">
       <header className="floating__header">
-        <div className="floating__header-meta floating__drag-zone" data-tauri-drag-region="deep">
+        <div
+          className="floating__header-meta floating__drag-zone"
+          data-tauri-drag-region="deep"
+          onDoubleClick={openMainApp}
+          title="双击打开主窗口"
+        >
           <span>{dateStr}</span>
           {finishHint && <span className="floating__header-budget">{finishHint}</span>}
           {snapshot?.timeBudget.remainingMinutes != null && snapshot.timeBudget.remainingMinutes > 0 && (
@@ -339,7 +351,7 @@ export function FloatingWidget() {
           )}
         </div>
         <div className="floating__header-actions">
-          <button type="button" onClick={() => void api.showMainWindow()} title="打开主窗口">
+          <button type="button" onClick={openMainApp} title="打开主窗口">
             <ExternalLink size={14} />
           </button>
           <button type="button" className="floating__collapse" onClick={() => void resize(false)}>
@@ -414,7 +426,7 @@ export function FloatingWidget() {
                     </button>
                   )}
                   {state === "review" && (
-                    <button type="button" className="floating__cta floating__cta--review" onClick={() => void api.showMainWindow()}>
+                    <button type="button" className="floating__cta floating__cta--review" onClick={openMainApp}>
                       审核
                     </button>
                   )}
