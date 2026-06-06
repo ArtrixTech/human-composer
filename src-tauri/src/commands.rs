@@ -891,16 +891,6 @@ pub fn show_main_window(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn toggle_floating_expanded(app: AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("floating") {
-        let expanded = window
-            .is_visible()
-            .map_err(|e| e.to_string())?
-            && window.inner_size().map_err(|e| e.to_string())?.height > 100;
-        if expanded {
-            let _ = window.set_size(tauri::LogicalSize::new(220.0, 52.0));
-        } else {
-            let _ = window.set_size(tauri::LogicalSize::new(320.0, 400.0));
-        }
-    }
+    let _ = app.emit("floating-toggle-expand", ());
     Ok(())
 }

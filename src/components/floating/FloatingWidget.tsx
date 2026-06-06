@@ -1,56 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Check, ChevronDown, Clock, ExternalLink, Play } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 
 import type { Branch, BranchSuggestion, DayRunwaySnapshot, TodayTaskContext } from "../../types";
 import * as api from "../../api/tauri";
-import {
-  findFirstClaimable,
-  isFocusActive,
-  isExternalActive,
-} from "../runway/runwayTaskUtils";
 import { formatMinutesTotal } from "../runway/taskBlockUtils";
 import { ExternalTaskDialog } from "../runway/ExternalTaskDialog";
+import { FloatingLaneRow } from "./FloatingLaneRow";
+import { computeFloatingSize } from "./floatingSize";
 import "./FloatingWidget.css";
-
-function focusActiveTasks(snapshot: DayRunwaySnapshot | null): TodayTaskContext[] {
-  if (!snapshot) return [];
-  return snapshot.lanes.flatMap((l) => l.tasks.filter((t) => isFocusActive(t)));
-}
-
-type LaneState = "active" | "review" | "claimable" | "external" | "idle";
-
-function laneState(
-  lane: DayRunwaySnapshot["lanes"][0],
-  claimableTaskId: string | null,
-): { state: LaneState; task: TodayTaskContext | null } {
-  const focusActive = lane.tasks.find((t) => isFocusActive(t));
-  if (focusActive) return { state: "active", task: focusActive };
-
-  const review = lane.tasks.find((t) => t.task.externalStatus === "needs_review");
-  if (review) return { state: "review", task: review };
-
-  const external = lane.tasks.find(
-    (t) => isExternalActive(t) && t.task.externalStatus === "delegated",
-  );
-  if (external) return { state: "external", task: external };
-
-  const claimable = lane.tasks.find(
-    (t) => t.task.status === "ready" && t.task.id === claimableTaskId,
-  );
-  if (claimable) return { state: "claimable", task: claimable };
-
-  return { state: "idle", task: null };
-}
-
-const STATE_LABEL: Record<LaneState, string> = {
-  active: "进行中",
-  review: "待审核",
-  claimable: "可领取",
-  external: "外部执行",
-  idle: "空闲",
-};
 
 type FooterPhase = "typing" | "picking";
 
@@ -88,6 +47,27 @@ export function FloatingWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const laneCount = snapshot?.lanes.length ?? 0;
+  const lanes = snapshot?.lanes ?? [];
+  const recommendations = snapshot?.recommendations ?? [];
+
+  const applyWindowSize = async (
+    nextExpanded: boolean,
+    nextLanes: typeof lanes,
+    nextPhase: FooterPhase,
+    nextRecommendations: typeof recommendations,
+  ) => {
+    const { width, height } = computeFloatingSize(
+      nextExpanded,
+      nextLanes.length,
+      nextPhase,
+      nextLanes,
+      nextRecommendations,
+    );
+    const win = getCurrentWindow();
+    await win.setSize(new LogicalSize(width, height));
+  };
+
   useEffect(() => {
     if (phase !== "picking") return;
     const onKey = (e: KeyboardEvent) => {
@@ -108,11 +88,23 @@ export function FloatingWidget() {
         setTimeout(() => inputRef.current?.focus(), 100);
       }),
     );
+    unsubs.push(
+      listen("floating-toggle-expand", () => {
+        setExpanded((prev) => {
+          if (prev) resetPick();
+          return !prev;
+        });
+      }),
+    );
     return () => {
       void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
       if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    void applyWindowSize(expanded, lanes, phase, recommendations);
+  }, [expanded, laneCount, phase, snapshot]);
 
   const showFeedback = (msg: string) => {
     setFeedback(msg);
@@ -130,26 +122,9 @@ export function FloatingWidget() {
 
   const resize = async (next: boolean) => {
     setExpanded(next);
-    const win = getCurrentWindow();
-    if (next) {
-      await win.setSize(new LogicalSize(320, phase === "picking" ? 460 : 420));
-    } else {
-      await win.setSize(new LogicalSize(300, 52));
-      resetPick();
-    }
+    if (!next) resetPick();
+    await applyWindowSize(next, lanes, phase, recommendations);
   };
-
-  const actives = focusActiveTasks(snapshot);
-  const primary = actives[0];
-  const primaryLane = snapshot?.lanes.find((l) =>
-    l.tasks.some((t) => primary && t.task.id === primary.task.id),
-  );
-  const claimable = snapshot ? findFirstClaimable(snapshot) : null;
-  const claimableTaskId = claimable?.ctx.task.id ?? null;
-  const needsReviewCount =
-    snapshot?.lanes
-      .flatMap((l) => l.tasks)
-      .filter((t) => t.task.externalStatus === "needs_review").length ?? 0;
 
   const dateStr = snapshot
     ? new Date(snapshot.date + "T12:00:00").toLocaleDateString("zh-CN", {
@@ -165,7 +140,7 @@ export function FloatingWidget() {
   const complete = async (ctx: TodayTaskContext) => {
     await api.completeTask(ctx.task.id, ctx.projectId);
     setSnapshot(await api.getDayRunwaySnapshot());
-    if (!expanded) void resize(true);
+    showFeedback("已完成");
   };
 
   const postpone = async (ctx: TodayTaskContext, laneId: string) => {
@@ -238,97 +213,61 @@ export function FloatingWidget() {
 
   const openMainApp = () => void api.showMainWindow();
 
-  if (!expanded) {
-    const label = primary?.task.title ?? claimable?.ctx.task.title ?? "选择任务…";
-    const laneName = primaryLane?.lane.name ?? claimable?.laneId
-      ? snapshot?.lanes.find((l) => l.lane.id === claimable?.laneId)?.lane.name
-      : undefined;
-    const dotClass = primary
-      ? "floating__dot--active"
-      : claimable
-        ? "floating__dot--claimable"
-        : needsReviewCount > 0
-          ? "floating__dot--review"
-          : "floating__dot--idle";
+  const laneRowProps = {
+    recommendations,
+    onComplete: (ctx: TodayTaskContext) => void complete(ctx),
+    onPostpone: (ctx: TodayTaskContext, laneId: string) => void postpone(ctx, laneId),
+    onClaim: (taskId: string, laneId: string, projectId: string) => void claim(taskId, laneId, projectId),
+    onDelegate: openDelegate,
+    onMarkExternalDone: (ctx: TodayTaskContext) => void markExternalDone(ctx),
+    onReview: openMainApp,
+  };
 
+  const delegateDialog = delegateTarget ? (
+    <ExternalTaskDialog
+      ctx={delegateTarget.ctx}
+      laneId={delegateTarget.laneId}
+      onClose={() => {
+        setDelegateTarget(null);
+        void refreshSnapshot();
+      }}
+    />
+  ) : null;
+
+  if (!expanded) {
     return (
       <>
         <div className="floating floating--collapsed">
           <div
-            className="floating__drag-zone"
+            className="floating__collapsed-lanes"
             data-tauri-drag-region="deep"
             onDoubleClick={openMainApp}
             title="双击打开主窗口"
           >
-            <span className={`floating__dot ${dotClass}`} />
-            <div className="floating__collapsed-main">
-              <span className="floating__task-name">{label}</span>
-              {laneName && <span className="floating__lane-name">{laneName}</span>}
-            </div>
-            {needsReviewCount > 0 && (
-              <span className="floating__badge">{needsReviewCount}</span>
+            {snapshot?.lanes.map((lane) => (
+              <FloatingLaneRow
+                key={lane.lane.id}
+                laneSnapshot={lane}
+                variant="compact"
+                {...laneRowProps}
+              />
+            ))}
+            {snapshot && snapshot.lanes.length === 0 && (
+              <p className="floating__lane-empty floating__lane-empty--collapsed">暂无泳道</p>
             )}
           </div>
-          {primary && primaryLane && (
-            <div className="floating__quick-actions">
-              <button
-                type="button"
-                className="floating__icon-btn floating__icon-btn--done"
-                title="完成"
-                aria-label="完成"
-                onClick={() => void complete(primary)}
-              >
-                <Check size={14} />
-              </button>
-              <button
-                type="button"
-                className="floating__icon-btn floating__icon-btn--postpone"
-                title="稍后再做"
-                aria-label="稍后"
-                onClick={() => void postpone(primary, primaryLane.lane.id)}
-              >
-                <Clock size={14} />
-              </button>
-              {primary.task.taskType === "normal" && primaryLane.lane.laneType !== "watch" && (
-                <button
-                  type="button"
-                  className="floating__icon-btn floating__icon-btn--delegate"
-                  title="委派外部执行"
-                  aria-label="委派"
-                  onClick={() => openDelegate(primary, primaryLane.lane.id)}
-                >
-                  <Bot size={14} />
-                </button>
-              )}
-            </div>
-          )}
-          {!primary && claimable && (
-            <button
-              type="button"
-              className="floating__icon-btn floating__icon-btn--claim"
-              title="领取"
-              aria-label="领取"
-              onClick={() =>
-                void claim(claimable.ctx.task.id, claimable.laneId, claimable.ctx.projectId)
-              }
-            >
-              <Play size={14} />
-            </button>
-          )}
-          <button type="button" className="floating__icon-btn" onClick={() => void resize(true)}>
+          {feedback && <span className="floating__toast">{feedback}</span>}
+          <button
+            type="button"
+            className="floating__expand-btn"
+            title="展开"
+            aria-label="展开"
+            onClick={() => void resize(true)}
+          >
             <ChevronDown size={14} />
           </button>
         </div>
-        {delegateTarget && (
-          <ExternalTaskDialog
-            ctx={delegateTarget.ctx}
-            laneId={delegateTarget.laneId}
-            onClose={() => {
-              setDelegateTarget(null);
-              void refreshSnapshot();
-            }}
-          />
-        )}
+        {delegateDialog}
       </>
     );
   }
@@ -361,87 +300,18 @@ export function FloatingWidget() {
       </header>
 
       <div className="floating__lanes">
-        {snapshot?.lanes.map((lane) => {
-          const { state, task } = laneState(lane, claimableTaskId);
-          const isWatch = lane.lane.laneType === "watch";
-          return (
-            <section
-              key={lane.lane.id}
-              className={`floating__lane floating__lane--${isWatch ? "watch" : "focus"} floating__lane--${state}`}
-            >
-              <div className="floating__lane-header">
-                <span className="floating__lane-name">{lane.lane.name}</span>
-                <span className="floating__lane-state">{STATE_LABEL[state]}</span>
-              </div>
-              {task ? (
-                <div className="floating__lane-row">
-                  <span className="floating__lane-task">{task.task.title}</span>
-                  {state === "active" && (
-                    <div className="floating__lane-actions floating__quick-actions">
-                      <button
-                        type="button"
-                        className="floating__icon-btn floating__icon-btn--done"
-                        title="完成"
-                        aria-label="完成"
-                        onClick={() => void complete(task)}
-                      >
-                        <Check size={14} />
-                      </button>
-                      {!isWatch && (
-                        <button
-                          type="button"
-                          className="floating__icon-btn floating__icon-btn--postpone"
-                          title="稍后再做"
-                          aria-label="稍后"
-                          onClick={() => void postpone(task, lane.lane.id)}
-                        >
-                          <Clock size={14} />
-                        </button>
-                      )}
-                      {!isWatch && task.task.taskType === "normal" && (
-                        <button
-                          type="button"
-                          className="floating__icon-btn floating__icon-btn--delegate"
-                          title="委派外部执行"
-                          aria-label="委派"
-                          onClick={() => openDelegate(task, lane.lane.id)}
-                        >
-                          <Bot size={14} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {state === "claimable" && (
-                    <button
-                      type="button"
-                      className="floating__cta floating__cta--claim"
-                      onClick={() => void claim(task.task.id, lane.lane.id, task.projectId)}
-                    >
-                      领取
-                    </button>
-                  )}
-                  {state === "external" && (
-                    <button type="button" className="floating__cta floating__cta--ghost" onClick={() => void markExternalDone(task)}>
-                      标记完成
-                    </button>
-                  )}
-                  {state === "review" && (
-                    <button type="button" className="floating__cta floating__cta--review" onClick={openMainApp}>
-                      审核
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <p className="floating__lane-empty">暂无任务</p>
-              )}
-            </section>
-          );
-        })}
+        {snapshot?.lanes.map((lane) => (
+          <FloatingLaneRow
+            key={lane.lane.id}
+            laneSnapshot={lane}
+            variant="comfortable"
+            {...laneRowProps}
+          />
+        ))}
+        {snapshot && snapshot.lanes.length === 0 && (
+          <p className="floating__lane-empty floating__lane-empty--page">暂无泳道</p>
+        )}
       </div>
-
-      {snapshot && snapshot.lanes.length === 0 && (
-        <p className="floating__lane-empty floating__lane-empty--page">暂无泳道</p>
-      )}
 
       <footer className="floating__footer">
         {phase === "picking" ? (
@@ -496,16 +366,7 @@ export function FloatingWidget() {
         {feedback && <p className="floating__feedback">{feedback}</p>}
       </footer>
 
-      {delegateTarget && (
-        <ExternalTaskDialog
-          ctx={delegateTarget.ctx}
-          laneId={delegateTarget.laneId}
-          onClose={() => {
-            setDelegateTarget(null);
-            void refreshSnapshot();
-          }}
-        />
-      )}
+      {delegateDialog}
     </div>
   );
 }

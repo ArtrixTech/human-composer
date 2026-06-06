@@ -161,3 +161,13 @@
 - 折叠/展开态拖动区域双击调用 `showMainWindow`，并 emit `main-show-today` 切换主窗口至今日安排视图
 
 **Commit:** `55875e1`
+
+## 2026-06-06 — 悬浮窗系统性优化
+
+- **折叠态多泳道**：N 条泳道 = N 行紧凑泳道栈，窗口高度随行数精确增长（36px/行），无内部留白
+- **完成后保持折叠**：删除完成后强制展开；各行就地完成/领取下一项
+- **Per-lane 可领取**：`findLaneClaimableOptions` 按全局推荐顺序展示多任务胶囊，点击即领取
+- **组件拆分**：`FloatingLaneRow` + `floatingSize` 统一折叠/展开泳道行与动态窗口尺寸
+- **Tauri 同步**：`toggle_floating_expanded` 改为 emit `floating-toggle-expand`；初始窗口 300×36
+
+**Commit:** _(pending)_

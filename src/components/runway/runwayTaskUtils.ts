@@ -4,7 +4,14 @@
  * frontend routing logic stays in sync with the backend model.
  */
 
-import type { DayRunwaySnapshot, TodayTaskContext } from "../../types";
+import type {
+  DayLaneSnapshot,
+  DayRunwaySnapshot,
+  RecommendedTask,
+  TodayTaskContext,
+} from "../../types";
+
+export type LaneState = "active" | "review" | "claimable" | "external" | "idle";
 
 export interface LaneCtx {
   ctx: TodayTaskContext;
@@ -95,4 +102,59 @@ export function findFirstClaimable(snapshot: DayRunwaySnapshot): LaneCtx | null 
     }
   }
   return null;
+}
+
+/** Ready tasks in a lane eligible for claim. */
+export function filterLaneClaimCandidates(lane: DayLaneSnapshot): TodayTaskContext[] {
+  if (lane.lane.laneType === "watch") return [];
+  return lane.tasks.filter((t) => t.task.status === "ready" && !isExternalActive(t));
+}
+
+/** Claimable tasks in a lane sorted by global recommendation order. */
+export function findLaneClaimableOptions(
+  lane: DayLaneSnapshot,
+  recommendations: RecommendedTask[],
+): TodayTaskContext[] {
+  const candidates = filterLaneClaimCandidates(lane);
+  if (candidates.length === 0) return [];
+
+  const orderMap = new Map(recommendations.map((r, i) => [r.task.id, i]));
+
+  return [...candidates].sort((a, b) => {
+    const oa = orderMap.get(a.task.id);
+    const ob = orderMap.get(b.task.id);
+    if (oa !== undefined && ob !== undefined) return oa - ob;
+    if (oa !== undefined) return -1;
+    if (ob !== undefined) return 1;
+    if (!a.task.postponed && b.task.postponed) return -1;
+    if (a.task.postponed && !b.task.postponed) return 1;
+    return a.task.title.localeCompare(b.task.title, "zh-CN");
+  });
+}
+
+/** Next claimable task within a single lane (per-lane, not global first). */
+export function findLaneClaimable(lane: DayLaneSnapshot): TodayTaskContext | null {
+  const idx = findFirstClaimableIndex(lane.tasks);
+  return idx >= 0 ? lane.tasks[idx] : null;
+}
+
+/** Resolve the primary actionable task and state for a lane row. */
+export function getLaneState(
+  lane: DayLaneSnapshot,
+): { state: LaneState; task: TodayTaskContext | null } {
+  const focusActive = lane.tasks.find((t) => isFocusActive(t));
+  if (focusActive) return { state: "active", task: focusActive };
+
+  const review = lane.tasks.find((t) => t.task.externalStatus === "needs_review");
+  if (review) return { state: "review", task: review };
+
+  const external = lane.tasks.find(
+    (t) => isExternalActive(t) && t.task.externalStatus === "delegated",
+  );
+  if (external) return { state: "external", task: external };
+
+  const claimable = findLaneClaimable(lane);
+  if (claimable) return { state: "claimable", task: claimable };
+
+  return { state: "idle", task: null };
 }
