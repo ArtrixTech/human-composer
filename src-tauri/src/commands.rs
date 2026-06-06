@@ -890,6 +890,87 @@ pub fn show_main_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn get_floating_notice_message() -> String {
+    notice::pending_message()
+}
+
+mod notice {
+    use std::sync::Mutex;
+
+    static PENDING: Mutex<String> = Mutex::new(String::new());
+
+    pub fn set_pending(message: &str) {
+        if let Ok(mut pending) = PENDING.lock() {
+            *pending = message.to_string();
+        }
+    }
+
+    pub fn pending_message() -> String {
+        PENDING.lock().map(|s| s.clone()).unwrap_or_default()
+    }
+
+    pub fn clear_pending() {
+        if let Ok(mut pending) = PENDING.lock() {
+            pending.clear();
+        }
+    }
+}
+
+#[tauri::command]
+pub fn show_floating_notice(app: AppHandle, message: String) -> Result<(), String> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Duration;
+
+    static NOTICE_GEN: AtomicU64 = AtomicU64::new(0);
+
+    const NOTICE_GAP: f64 = 4.0;
+    const NOTICE_HEIGHT: f64 = 28.0;
+
+    notice::set_pending(&message);
+
+    let floating = app
+        .get_webview_window("floating")
+        .ok_or("floating window not found")?;
+    let notice = app
+        .get_webview_window("floating-notice")
+        .ok_or("floating-notice window not found")?;
+
+    let scale = floating.scale_factor().map_err(|e| e.to_string())?;
+    let pos = floating.outer_position().map_err(|e| e.to_string())?;
+    let size = floating.outer_size().map_err(|e| e.to_string())?;
+
+    let width = size.width as f64 / scale;
+    let x = pos.x as f64 / scale;
+    let y = pos.y as f64 / scale + size.height as f64 / scale + NOTICE_GAP;
+
+    notice
+        .set_size(tauri::LogicalSize::new(width, NOTICE_HEIGHT))
+        .map_err(|e| e.to_string())?;
+    notice
+        .set_position(tauri::LogicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
+    let _ = notice.set_always_on_top(true);
+    let _ = notice.emit("floating-notice-message", &message);
+    notice.show().map_err(|e| e.to_string())?;
+
+    let generation = NOTICE_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(2000));
+        if NOTICE_GEN.load(Ordering::SeqCst) != generation {
+            return;
+        }
+        notice::clear_pending();
+        if let Some(window) = app_clone.get_webview_window("floating-notice") {
+            let _ = window.emit("floating-notice-message", "");
+            let _ = window.hide();
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn toggle_floating_expanded(app: AppHandle) -> Result<(), String> {
     let _ = app.emit("floating-toggle-expand", ());
     Ok(())

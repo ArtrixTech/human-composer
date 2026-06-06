@@ -63,7 +63,7 @@ pub fn run() {
             tray::setup_tray(app.handle())?;
             let _ = tray::refresh_tray_menu(app.handle());
 
-            for label in ["main", "floating"] {
+            for label in ["main", "floating", "floating-notice"] {
                 if let Some(window) = app.get_webview_window(label) {
                     let _ = window.set_shadow(true);
                 }
@@ -72,7 +72,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             {
                 use tauri::window::{Effect, EffectsBuilder};
-                for label in ["main", "floating"] {
+                for label in ["main", "floating", "floating-notice"] {
                     if let Some(window) = app.get_webview_window(label) {
                         let _ = window.set_effects(
                             EffectsBuilder::new()
@@ -87,6 +87,10 @@ pub fn run() {
             if let Some(floating) = app.get_webview_window("floating") {
                 let _ = floating.set_maximizable(false);
                 let _ = floating.set_resizable(false);
+            }
+            if let Some(notice) = app.get_webview_window("floating-notice") {
+                let _ = notice.set_maximizable(false);
+                let _ = notice.set_resizable(false);
             }
 
             let handle = app.handle().clone();
@@ -163,6 +167,8 @@ pub fn run() {
             commands::undo_last_action,
             commands::list_project_sources,
             commands::show_main_window,
+            commands::show_floating_notice,
+            commands::get_floating_notice_message,
             commands::toggle_floating_expanded,
         ])
         .run(tauri::generate_context!())

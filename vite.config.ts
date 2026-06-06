@@ -29,6 +29,7 @@ export default defineConfig(async () => ({
       input: {
         main: resolve(__dirname, "index.html"),
         floating: resolve(__dirname, "floating.html"),
+        "floating-notice": resolve(__dirname, "floating-notice.html"),
       },
     },
   },

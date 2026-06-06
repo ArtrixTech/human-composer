@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
@@ -7,8 +7,9 @@ import type { Branch, BranchSuggestion, DayRunwaySnapshot, TodayTaskContext } fr
 import * as api from "../../api/tauri";
 import { formatMinutesTotal } from "../runway/taskBlockUtils";
 import { ExternalTaskDialog } from "../runway/ExternalTaskDialog";
+import { sortLanesForDisplay } from "../runway/runwayTaskUtils";
 import { FloatingLaneRow } from "./FloatingLaneRow";
-import { computeFloatingSize } from "./floatingSize";
+import { FLOATING_WIDTH } from "./floatingSize";
 import "./FloatingWidget.css";
 
 type FooterPhase = "typing" | "picking";
@@ -39,33 +40,23 @@ export function FloatingWidget() {
   const [createProjectId, setCreateProjectId] = useState<string | null>(null);
   const [branchSuggestion, setBranchSuggestion] = useState<BranchSuggestion | null>(null);
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [delegateTarget, setDelegateTarget] = useState<{
     ctx: TodayTaskContext;
     laneId: string;
   } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
 
-  const laneCount = snapshot?.lanes.length ?? 0;
-  const lanes = snapshot?.lanes ?? [];
+  const lanes = sortLanesForDisplay(snapshot?.lanes ?? []);
+  const laneCount = lanes.length;
   const recommendations = snapshot?.recommendations ?? [];
 
-  const applyWindowSize = async (
-    nextExpanded: boolean,
-    nextLanes: typeof lanes,
-    nextPhase: FooterPhase,
-    nextRecommendations: typeof recommendations,
-  ) => {
-    const { width, height } = computeFloatingSize(
-      nextExpanded,
-      nextLanes.length,
-      nextPhase,
-      nextLanes,
-      nextRecommendations,
-    );
-    const win = getCurrentWindow();
-    await win.setSize(new LogicalSize(width, height));
+  const syncWindowSize = async () => {
+    const el = shellRef.current;
+    if (!el) return;
+    const height = Math.ceil(el.scrollHeight);
+    if (height <= 0) return;
+    await getCurrentWindow().setSize(new LogicalSize(FLOATING_WIDTH, height));
   };
 
   useEffect(() => {
@@ -98,18 +89,15 @@ export function FloatingWidget() {
     );
     return () => {
       void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
-      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
     };
   }, []);
 
-  useEffect(() => {
-    void applyWindowSize(expanded, lanes, phase, recommendations);
-  }, [expanded, laneCount, phase, snapshot]);
+  useLayoutEffect(() => {
+    void syncWindowSize();
+  }, [expanded, laneCount, phase, snapshot, lanes, recommendations]);
 
   const showFeedback = (msg: string) => {
-    setFeedback(msg);
-    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
-    feedbackTimer.current = setTimeout(() => setFeedback(null), 2000);
+    void api.showFloatingNotice(msg);
   };
 
   const resetPick = () => {
@@ -120,10 +108,9 @@ export function FloatingWidget() {
     setPendingTaskId(null);
   };
 
-  const resize = async (next: boolean) => {
+  const resize = (next: boolean) => {
     setExpanded(next);
     if (!next) resetPick();
-    await applyWindowSize(next, lanes, phase, recommendations);
   };
 
   const dateStr = snapshot
@@ -234,139 +221,136 @@ export function FloatingWidget() {
     />
   ) : null;
 
-  if (!expanded) {
-    return (
-      <>
-        <div className="floating floating--collapsed">
-          <div
-            className="floating__collapsed-lanes"
-            data-tauri-drag-region="deep"
-            onDoubleClick={openMainApp}
-            title="双击打开主窗口"
-          >
-            {snapshot?.lanes.map((lane) => (
-              <FloatingLaneRow
-                key={lane.lane.id}
-                laneSnapshot={lane}
-                variant="compact"
-                {...laneRowProps}
-              />
-            ))}
-            {snapshot && snapshot.lanes.length === 0 && (
-              <p className="floating__lane-empty floating__lane-empty--collapsed">暂无泳道</p>
-            )}
-          </div>
-          {feedback && <span className="floating__toast">{feedback}</span>}
-          <button
-            type="button"
-            className="floating__expand-btn"
-            title="展开"
-            aria-label="展开"
-            onClick={() => void resize(true)}
-          >
-            <ChevronDown size={14} />
-          </button>
-        </div>
-        {delegateDialog}
-      </>
-    );
-  }
-
   return (
-    <div className="floating floating--expanded">
-      <header className="floating__header">
-        <div
-          className="floating__header-meta floating__drag-zone"
-          data-tauri-drag-region="deep"
-          onDoubleClick={openMainApp}
-          title="双击打开主窗口"
-        >
-          <span>{dateStr}</span>
-          {finishHint && <span className="floating__header-budget">{finishHint}</span>}
-          {snapshot?.timeBudget.remainingMinutes != null && snapshot.timeBudget.remainingMinutes > 0 && (
-            <span className="floating__header-budget">
-              剩余 {formatMinutesTotal(snapshot.timeBudget.remainingMinutes)}
-            </span>
-          )}
-        </div>
-        <div className="floating__header-actions">
-          <button type="button" onClick={openMainApp} title="打开主窗口">
-            <ExternalLink size={14} />
-          </button>
-          <button type="button" className="floating__collapse" onClick={() => void resize(false)}>
-            —
-          </button>
-        </div>
-      </header>
-
-      <div className="floating__lanes">
-        {snapshot?.lanes.map((lane) => (
-          <FloatingLaneRow
-            key={lane.lane.id}
-            laneSnapshot={lane}
-            variant="comfortable"
-            {...laneRowProps}
-          />
-        ))}
-        {snapshot && snapshot.lanes.length === 0 && (
-          <p className="floating__lane-empty floating__lane-empty--page">暂无泳道</p>
-        )}
-      </div>
-
-      <footer className="floating__footer">
-        {phase === "picking" ? (
-          <div className="floating__pick">
-            <p className="floating__pick-label">选择支线</p>
-            <div className="floating__pick-groups">
-              {pickGroups.map((group) => (
-                <section key={group.projectId} className="floating__pick-group">
-                  <h4
-                    className={`floating__pick-project ${group.projectId === createProjectId ? "floating__pick-project--source" : ""}`}
-                  >
-                    {group.projectName}
-                    {group.projectId === createProjectId && (
-                      <span className="floating__pick-project-tag">当前</span>
-                    )}
-                  </h4>
-                  <div className="floating__pick-chips">
-                    {group.branches.map((b) => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        className={
-                          branchSuggestion?.branchId === b.id &&
-                          group.projectId === createProjectId
-                            ? "floating__pick-chip floating__pick-chip--suggested"
-                            : "floating__pick-chip"
-                        }
-                        onClick={() => void assignBranch(b.id, b.name, group.projectName)}
-                      >
-                        {b.name}
-                      </button>
-                    ))}
-                  </div>
-                </section>
+    <>
+      <div ref={shellRef} className="floating-shell">
+        {!expanded ? (
+          <div className="floating floating--collapsed">
+            <div
+              className="floating__collapsed-lanes"
+              data-tauri-drag-region="deep"
+              onDoubleClick={openMainApp}
+              title="双击打开主窗口"
+            >
+              {lanes.map((lane) => (
+                <FloatingLaneRow
+                  key={lane.lane.id}
+                  laneSnapshot={lane}
+                  variant="compact"
+                  {...laneRowProps}
+                />
               ))}
+              {snapshot && lanes.length === 0 && (
+                <p className="floating__lane-empty floating__lane-empty--collapsed">暂无泳道</p>
+              )}
             </div>
-            <button type="button" className="floating__pick-skip" onClick={skipAssign}>
-              跳过（仅 Inbox）
+            <button
+              type="button"
+              className="floating__expand-btn"
+              title="展开"
+              aria-label="展开"
+              onClick={() => void resize(true)}
+            >
+              <ChevronDown size={14} />
             </button>
           </div>
         ) : (
-          <input
-            ref={inputRef}
-            placeholder="快速添加…"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void startCreate();
-            }}
-          />
-        )}
-        {feedback && <p className="floating__feedback">{feedback}</p>}
-      </footer>
+          <div className="floating floating--expanded">
+            <header className="floating__header">
+              <div
+                className="floating__header-meta floating__drag-zone"
+                data-tauri-drag-region="deep"
+                onDoubleClick={openMainApp}
+                title="双击打开主窗口"
+              >
+                <span>{dateStr}</span>
+                {finishHint && <span className="floating__header-budget">{finishHint}</span>}
+                {snapshot?.timeBudget.remainingMinutes != null &&
+                  snapshot.timeBudget.remainingMinutes > 0 && (
+                    <span className="floating__header-budget">
+                      剩余 {formatMinutesTotal(snapshot.timeBudget.remainingMinutes)}
+                    </span>
+                  )}
+              </div>
+              <div className="floating__header-actions">
+                <button type="button" onClick={openMainApp} title="打开主窗口">
+                  <ExternalLink size={14} />
+                </button>
+                <button type="button" className="floating__collapse" onClick={() => void resize(false)}>
+                  —
+                </button>
+              </div>
+            </header>
 
+            <div className="floating__lanes">
+              {lanes.map((lane) => (
+                <FloatingLaneRow
+                  key={lane.lane.id}
+                  laneSnapshot={lane}
+                  variant="comfortable"
+                  {...laneRowProps}
+                />
+              ))}
+              {snapshot && lanes.length === 0 && (
+                <p className="floating__lane-empty floating__lane-empty--page">暂无泳道</p>
+              )}
+            </div>
+
+            <footer className="floating__footer">
+              {phase === "picking" ? (
+                <div className="floating__pick">
+                  <p className="floating__pick-label">选择支线</p>
+                  <div className="floating__pick-groups">
+                    {pickGroups.map((group) => (
+                      <section key={group.projectId} className="floating__pick-group">
+                        <h4
+                          className={`floating__pick-project ${group.projectId === createProjectId ? "floating__pick-project--source" : ""}`}
+                        >
+                          {group.projectName}
+                          {group.projectId === createProjectId && (
+                            <span className="floating__pick-project-tag">当前</span>
+                          )}
+                        </h4>
+                        <div className="floating__pick-chips">
+                          {group.branches.map((b) => (
+                            <button
+                              key={b.id}
+                              type="button"
+                              className={
+                                branchSuggestion?.branchId === b.id &&
+                                group.projectId === createProjectId
+                                  ? "floating__pick-chip floating__pick-chip--suggested"
+                                  : "floating__pick-chip"
+                              }
+                              onClick={() => void assignBranch(b.id, b.name, group.projectName)}
+                            >
+                              {b.name}
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                  <button type="button" className="floating__pick-skip" onClick={skipAssign}>
+                    跳过（仅 Inbox）
+                  </button>
+                </div>
+              ) : (
+                <input
+                  ref={inputRef}
+                  placeholder="快速添加…"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void startCreate();
+                  }}
+                />
+              )}
+            </footer>
+          </div>
+        )}
+      </div>
       {delegateDialog}
-    </div>
+    </>
   );
 }

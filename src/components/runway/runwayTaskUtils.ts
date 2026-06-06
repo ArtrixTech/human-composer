@@ -138,6 +138,56 @@ export function findLaneClaimable(lane: DayLaneSnapshot): TodayTaskContext | nul
   return idx >= 0 ? lane.tasks[idx] : null;
 }
 
+/** Split lane tasks: focus queue first, external/delegated always last. */
+export function partitionLaneTasks(tasks: TodayTaskContext[]): {
+  focus: TodayTaskContext[];
+  external: TodayTaskContext[];
+} {
+  const focus: TodayTaskContext[] = [];
+  const external: TodayTaskContext[] = [];
+  for (const ctx of tasks) {
+    if (isExternalActive(ctx)) external.push(ctx);
+    else focus.push(ctx);
+  }
+  return { focus, external };
+}
+
+/** Keep external task ids at the end after a drag reorder. */
+export function normalizeLaneTaskOrder(
+  tasks: TodayTaskContext[],
+  orderedIds: string[],
+): string[] {
+  const externalIds = new Set(
+    tasks.filter((t) => isExternalActive(t)).map((t) => t.task.id),
+  );
+  const focusIds = orderedIds.filter((id) => !externalIds.has(id));
+  const extIds = orderedIds.filter((id) => externalIds.has(id));
+  return [...focusIds, ...extIds];
+}
+
+/** Focus lanes first, watch (external) lanes last for display. */
+export function sortLanesForDisplay(lanes: DayLaneSnapshot[]): DayLaneSnapshot[] {
+  return [...lanes].sort((a, b) => {
+    const aWatch = a.lane.laneType === "watch";
+    const bWatch = b.lane.laneType === "watch";
+    if (aWatch !== bWatch) return aWatch ? 1 : -1;
+    return a.lane.sortOrder - b.lane.sortOrder;
+  });
+}
+
+/** Pin watch lanes after focus lanes when reordering. */
+export function normalizeLaneOrder(
+  lanes: DayLaneSnapshot[],
+  orderedIds: string[],
+): string[] {
+  const watchIds = new Set(
+    lanes.filter((l) => l.lane.laneType === "watch").map((l) => l.lane.id),
+  );
+  const focusIds = orderedIds.filter((id) => !watchIds.has(id));
+  const watch = orderedIds.filter((id) => watchIds.has(id));
+  return [...focusIds, ...watch];
+}
+
 /** Resolve the primary actionable task and state for a lane row. */
 export function getLaneState(
   lane: DayLaneSnapshot,

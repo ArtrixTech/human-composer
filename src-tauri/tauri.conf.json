@@ -46,6 +46,26 @@
           "effects": ["contentBackground"],
           "radius": 12
         }
+      },
+      {
+        "label": "floating-notice",
+        "title": "Human Composer",
+        "url": "floating-notice.html",
+        "width": 300,
+        "height": 28,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "acceptFirstMouse": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "maximizable": false,
+        "visible": false,
+        "transparent": true,
+        "shadow": true,
+        "windowEffects": {
+          "effects": ["contentBackground"],
+          "radius": 12
+        }
       }
     ],
     "security": {

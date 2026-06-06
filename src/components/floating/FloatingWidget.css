@@ -1,22 +1,26 @@
 .floating-shell {
   box-sizing: border-box;
-  height: 100%;
+  width: 100%;
+  height: auto;
   overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--window-radius);
-  background: transparent;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  isolation: isolate;
 }
 
 .floating {
   box-sizing: border-box;
-  height: 100%;
-  min-height: 0;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--window-radius);
+  width: 100%;
+  height: auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: var(--text-primary);
   font-family: var(--font-sans);
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -36,7 +40,6 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
 .floating__collapsed-lanes {
@@ -71,20 +74,6 @@
   background: linear-gradient(to left, var(--bg-hover) 60%, transparent);
 }
 
-.floating__toast {
-  position: absolute;
-  left: 8px;
-  right: 24px;
-  bottom: 4px;
-  font-size: 10px;
-  color: var(--status-ready);
-  pointer-events: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  z-index: 2;
-}
-
 /* ── Lane row (shared compact / comfortable) ──────────────────────────── */
 
 .floating__lane-row {
@@ -97,8 +86,10 @@
   flex-shrink: 0;
 }
 
-.floating__lane-row--watch {
-  border-left-color: var(--lane-watch-accent);
+.floating__lane-row--watch,
+.floating__lane-row--external,
+.floating__lane-row--review {
+  border-left: 2px dashed var(--color-warning);
 }
 
 .floating__lane-row--compact {
@@ -418,6 +409,7 @@
 .floating--expanded {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .floating__header {
@@ -512,7 +504,6 @@
 }
 
 .floating__footer {
-  margin-top: auto;
   padding: 10px 12px;
   border-top: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -617,8 +608,3 @@
   color: var(--text-secondary);
 }
 
-.floating__feedback {
-  margin: 6px 0 0;
-  font-size: var(--text-xs);
-  color: var(--status-ready);
-}

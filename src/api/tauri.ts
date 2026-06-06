@@ -281,6 +281,10 @@ export function showMainWindow(): Promise<void> {
   return invoke("show_main_window");
 }
 
+export function showFloatingNotice(message: string): Promise<void> {
+  return invoke("show_floating_notice", { message });
+}
+
 export function toggleFloatingExpanded(): Promise<void> {
   return invoke("toggle_floating_expanded");
 }

@@ -170,4 +170,13 @@
 - **组件拆分**：`FloatingLaneRow` + `floatingSize` 统一折叠/展开泳道行与动态窗口尺寸
 - **Tauri 同步**：`toggle_floating_expanded` 改为 emit `floating-toggle-expand`；初始窗口 300×36
 
+**Commit:** `f376dee`
+
+## 2026-06-06 — 悬浮窗圆角裁切与独立通知胶囊
+
+- **圆角裁切**：圆角/背景/边框移至 `.floating-shell`，`overflow: hidden` 裁切透明窗口尖角
+- **动态尺寸**：`useLayoutEffect` 测量 `shellRef.scrollHeight` 同步窗口高度，展开态 footer 不再被裁切
+- **独立通知**：临时反馈改为悬浮窗正下方 `floating-notice` 圆角胶囊，2s 自动收起，主面板高度不变
+- **泳道排序**：折叠/展开态 `sortLanesForDisplay`，watch 泳道置底；外部任务行黄色虚线样式
+
 **Commit:** _(pending)_
