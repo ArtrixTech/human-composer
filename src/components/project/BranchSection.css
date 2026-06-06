@@ -1,0 +1,54 @@
+.branch-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.branch-section__tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 8px;
+}
+
+.branch-section__add-trigger {
+  margin: 4px 0 4px 8px;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 4px 8px;
+}
+
+.branch-section__add-trigger:hover {
+  color: var(--text-secondary);
+}
+
+.branch-section__add-form {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 4px 8px;
+  padding: 0 8px;
+}
+
+.branch-section__add-form input {
+  flex: 1;
+  font-size: var(--text-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  color: var(--text-primary);
+}
+
+.branch-section__add-form button {
+  font-size: var(--text-sm);
+  padding: 4px 10px;
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}

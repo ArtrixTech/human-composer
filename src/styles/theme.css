@@ -1,0 +1,121 @@
+:root {
+  /* Linear-inspired palette */
+  --bg-base: #09090b;
+  --bg-surface: #111113;
+  --bg-elevated: #18181b;
+  --bg-hover: #1f1f23;
+  --border-subtle: #27272a;
+  --border-default: #3f3f46;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --accent: #5e6ad2;
+  --accent-hover: #6872d9;
+  --accent-muted: rgba(94, 106, 210, 0.15);
+
+  --status-active: #3b82f6;
+  --status-active-bg: rgba(59, 130, 246, 0.12);
+  --status-ready: #22c55e;
+  --status-ready-bg: rgba(34, 197, 94, 0.12);
+  --status-pending: #71717a;
+  --status-pending-bg: rgba(113, 113, 122, 0.1);
+  --status-done: #52525b;
+  --status-done-bg: rgba(82, 82, 91, 0.15);
+  --status-inbox: #a78bfa;
+  --status-inbox-bg: rgba(167, 139, 250, 0.12);
+  --status-external: #a78bfa;
+  --status-external-bg: rgba(167, 139, 250, 0.12);
+  --status-review: #fb923c;
+  --status-review-bg: rgba(251, 146, 60, 0.12);
+  --color-danger: #f87171;
+  --color-warning: #facc15;
+  --focus-single: #60a5fa;
+  --focus-parallel: #facc15;
+  --focus-heavy: #f87171;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --titlebar-height: 40px;
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 52px;
+  --window-radius: 12px;
+
+  /* Runway layout scale */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --card-width: 180px;
+  --card-height: 68px;
+  --card-gap: 6px;
+  --section-gap: 12px;
+  --lane-gap: 10px;
+
+  /* Runway surfaces */
+  --surface-card: var(--bg-elevated);
+  --surface-card-hover: var(--bg-hover);
+  --surface-card-active: rgba(59, 130, 246, 0.08);
+  --lane-focus-accent: var(--accent);
+  --lane-watch-accent: var(--status-external);
+
+  /* Project page layout */
+  --page-padding-x: 16px;
+  --page-padding-y: 12px;
+  --toolbar-height: 36px;
+
+  /* Kanban layout — sync with src/layout/kanbanTokens.ts */
+  --kanban-column-width: 196px;
+  --kanban-column-gutter: 8px;
+  --kanban-card-width: 180px;
+  --kanban-card-height: 76px;
+  --kanban-card-gap: 8px;
+  --kanban-header-height: 40px;
+  --kanban-add-task-height: 32px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  min-height: 100%;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input {
+  font: inherit;
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

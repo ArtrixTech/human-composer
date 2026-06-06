@@ -1,0 +1,78 @@
+.kanban-board {
+  position: relative;
+  flex-shrink: 0;
+  background: var(--bg-base);
+}
+
+.kanban-board__column-bg {
+  position: absolute;
+  top: 0;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.kanban-board .react-flow {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+}
+
+.kanban-board .react-flow__renderer,
+.kanban-board .react-flow__pane,
+.kanban-board .react-flow__viewport,
+.kanban-board .react-flow__nodes {
+  overflow: visible !important;
+}
+
+.kanban-board .react-flow__node {
+  overflow: visible !important;
+  background: transparent;
+}
+
+.kanban-board .react-flow__pane {
+  cursor: default;
+}
+
+.kanban-board .react-flow__viewport {
+  transform-origin: 0 0 !important;
+}
+
+.kanban-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-tertiary);
+  padding: var(--page-padding-y) var(--page-padding-x);
+  min-height: 0;
+}
+
+.kanban-empty h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
+.kanban-empty__cta {
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.kanban-empty__form input {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  outline: none;
+}

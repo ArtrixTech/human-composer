@@ -1,551 +1,906 @@
-use crate::models::{Branch, Project, Task, TaskStatus};
-use crate::AppState;
-use chrono::Utc;
-use rusqlite::params;
-use tauri::State;
-use uuid::Uuid;
+use std::sync::Mutex;
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+use tauri::{AppHandle, Emitter, Manager, State};
 
-fn query_task(db: &rusqlite::Connection, id: &str) -> Result<Task, String> {
-    db.query_row(
-        "SELECT id, branch_id, project_id, title, description, status, sort_order, created_at, completed_at
-         FROM tasks WHERE id = ?1",
-        params![id],
-        |row| {
-            let status_str: String = row.get(5)?;
-            Ok(Task {
-                id: row.get(0)?,
-                branch_id: row.get(1)?,
-                project_id: row.get(2)?,
-                title: row.get(3)?,
-                description: row.get(4)?,
-                status: TaskStatus::from(status_str.as_str()),
-                sort_order: row.get(6)?,
-                created_at: row.get(7)?,
-                completed_at: row.get(8)?,
-            })
-        },
-    )
-    .map_err(|e| e.to_string())
+use crate::auto_assign::suggest_branch;
+use crate::db::Database;
+use crate::models::{
+    AppSnapshot, Branch, BranchSuggestion, CompleteTaskResult, CreateTaskResult, DayLane,
+    DayLaneType, DayRunwaySnapshot, ProjectGraph, ProjectSummary, Task, TaskStatus, TodaySnapshot,
+};
+use crate::undo::{UndoAction, UndoStack};
+use crate::runway::local_date_string;
+
+pub struct AppState {
+    pub db: Mutex<Database>,
+    pub undo: UndoStack,
 }
 
-fn cascade_ready(db: &rusqlite::Connection, completed_task_id: &str) -> Result<Vec<Task>, String> {
-    let dependent_ids: Vec<String> = {
-        let mut stmt = db
-            .prepare("SELECT task_id FROM task_dependencies WHERE depends_on_task_id = ?1")
-            .map_err(|e| e.to_string())?;
-        stmt.query_map(params![completed_task_id], |row| row.get(0))
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?
-    };
-
-    let mut newly_ready = Vec::new();
-    for dep_id in dependent_ids {
-        let pending_count: i32 = db
-            .query_row(
-                "SELECT COUNT(*) FROM task_dependencies td
-                 JOIN tasks t ON td.depends_on_task_id = t.id
-                 WHERE td.task_id = ?1 AND t.status != 'done'",
-                params![dep_id],
-                |row| row.get(0),
-            )
-            .map_err(|e| e.to_string())?;
-
-        if pending_count == 0 {
-            db.execute(
-                "UPDATE tasks SET status = 'ready' WHERE id = ?1 AND status = 'pending'",
-                params![dep_id],
-            )
-            .map_err(|e| e.to_string())?;
-            let task = query_task(db, &dep_id)?;
-            if task.status == TaskStatus::Ready {
-                newly_ready.push(task);
-            }
-        }
+fn active_project_id(db: &Database) -> Result<String, String> {
+    if let Some(id) = db
+        .get_active_project_id()
+        .map_err(|e| e.to_string())?
+    {
+        return Ok(id);
     }
-    Ok(newly_ready)
+    let projects = db.list_projects().map_err(|e| e.to_string())?;
+    projects
+        .first()
+        .map(|p| p.id.clone())
+        .ok_or_else(|| "No project available".to_string())
 }
 
-// ─── projects ─────────────────────────────────────────────────────────────────
-
-#[tauri::command]
-pub fn get_projects(state: State<AppState>) -> Result<Vec<Project>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = db
-        .prepare(
-            "SELECT id, name, source_type, source_ref, created_at
-             FROM projects ORDER BY created_at",
-        )
-        .map_err(|e| e.to_string())?;
-    stmt.query_map([], |row| {
-        Ok(Project {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            source_type: row.get(2)?,
-            source_ref: row.get(3)?,
-            created_at: row.get(4)?,
-        })
-    })
-    .map_err(|e| e.to_string())?
-    .collect::<Result<Vec<_>, _>>()
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn create_project(
-    name: String,
-    state: State<AppState>,
-    app: tauri::AppHandle,
-) -> Result<Project, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let id = Uuid::new_v4().to_string();
-    let created_at = Utc::now().to_rfc3339();
-    db.execute(
-        "INSERT INTO projects (id, name, source_type, created_at) VALUES (?1, ?2, 'manual', ?3)",
-        params![id, name, created_at],
-    )
-    .map_err(|e| e.to_string())?;
-    let project = Project {
-        id,
-        name,
-        source_type: "manual".to_string(),
-        source_ref: None,
-        created_at,
+/// Build snapshot and emit **after** releasing the DB lock to avoid deadlocks
+/// with tray refresh / other commands listening on `graph-updated`.
+fn emit_snapshot(app: &AppHandle, state: &State<'_, AppState>, project_id: &str) -> Result<(), String> {
+    let (snapshot, runway) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let snapshot = db.build_app_snapshot(project_id).map_err(|e| e.to_string())?;
+        let runway = db.build_day_runway_snapshot().map_err(|e| e.to_string())?;
+        (snapshot, runway)
     };
-    let _ = app.emit("project-created", &project);
-    Ok(project)
-}
-
-#[tauri::command]
-pub fn delete_project(
-    id: String,
-    state: State<AppState>,
-    app: tauri::AppHandle,
-) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute("DELETE FROM projects WHERE id = ?1", params![id])
-        .map_err(|e| e.to_string())?;
-    let _ = app.emit("project-deleted", &id);
+    let _ = app.emit("graph-updated", &snapshot);
+    let _ = app.emit("runway-updated", &runway);
+    let _ = app.emit("today-updated", &runway);
     Ok(())
 }
 
-// ─── branches ─────────────────────────────────────────────────────────────────
-
-#[tauri::command]
-pub fn get_branches(project_id: String, state: State<AppState>) -> Result<Vec<Branch>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = db
-        .prepare(
-            "SELECT id, project_id, name, sort_order, archived
-             FROM branches WHERE project_id = ?1 AND archived = 0
-             ORDER BY sort_order, rowid",
-        )
-        .map_err(|e| e.to_string())?;
-    stmt.query_map(params![project_id], |row| {
-        Ok(Branch {
-            id: row.get(0)?,
-            project_id: row.get(1)?,
-            name: row.get(2)?,
-            sort_order: row.get(3)?,
-            archived: row.get::<_, i32>(4)? != 0,
-        })
-    })
-    .map_err(|e| e.to_string())?
-    .collect::<Result<Vec<_>, _>>()
-    .map_err(|e| e.to_string())
+fn emit_runway_only(app: &AppHandle, state: &State<'_, AppState>) -> Result<(), String> {
+    let runway = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.build_day_runway_snapshot().map_err(|e| e.to_string())?
+    };
+    let _ = app.emit("runway-updated", &runway);
+    let _ = app.emit("today-updated", &runway);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn create_branch(
-    project_id: String,
+pub fn get_today_snapshot(state: State<'_, AppState>) -> Result<TodaySnapshot, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .build_today_snapshot()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_day_runway_snapshot(state: State<'_, AppState>) -> Result<DayRunwaySnapshot, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .build_day_runway_snapshot()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn auto_populate_runway(state: State<'_, AppState>, date: Option<String>) -> Result<(), String> {
+    let date = date.unwrap_or_else(local_date_string);
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.auto_populate_runway(&date).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn create_day_lane(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    date: Option<String>,
     name: String,
-    state: State<AppState>,
-    app: tauri::AppHandle,
-) -> Result<Branch, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let id = Uuid::new_v4().to_string();
-    let sort_order: i32 = db
-        .query_row(
-            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM branches WHERE project_id = ?1",
-            params![project_id],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-    db.execute(
-        "INSERT INTO branches (id, project_id, name, sort_order) VALUES (?1, ?2, ?3, ?4)",
-        params![id, project_id, name, sort_order],
-    )
-    .map_err(|e| e.to_string())?;
-    let branch = Branch {
-        id,
-        project_id,
-        name,
-        sort_order,
-        archived: false,
+    lane_type: String,
+) -> Result<DayLane, String> {
+    let date = date.unwrap_or_else(local_date_string);
+    let lt = DayLaneType::from_str(&lane_type);
+    let lane = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.create_day_lane(&date, &name, lt).map_err(|e| e.to_string())?
     };
-    let _ = app.emit("branch-created", &branch);
+    emit_runway_only(&app, &state)?;
+    Ok(lane)
+}
+
+#[tauri::command]
+pub fn close_day_lane(app: AppHandle, state: State<'_, AppState>, lane_id: String) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.close_day_lane(&lane_id).map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn rename_day_lane(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    lane_id: String,
+    name: String,
+) -> Result<DayLane, String> {
+    let lane = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.rename_day_lane(&lane_id, &name).map_err(|e| e.to_string())?
+    };
+    emit_runway_only(&app, &state)?;
+    Ok(lane)
+}
+
+#[tauri::command]
+pub fn reorder_day_lanes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    date: Option<String>,
+    lane_ids: Vec<String>,
+) -> Result<(), String> {
+    let date = date.unwrap_or_else(local_date_string);
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_day_lanes(&date, &lane_ids).map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn assign_task_to_lane(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    lane_id: String,
+    position: Option<i32>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.assign_task_to_lane(&task_id, &lane_id, position)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn remove_task_from_lane(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    lane_id: String,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.remove_task_from_lane(&task_id, &lane_id)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn reorder_lane_tasks(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    lane_id: String,
+    task_ids: Vec<String>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_lane_tasks(&lane_id, &task_ids)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn move_task_between_lanes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    from_lane_id: String,
+    to_lane_id: String,
+    position: Option<i32>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.move_task_between_lanes(&task_id, &from_lane_id, &to_lane_id, position)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn claim_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    lane_id: String,
+    project_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.claim_task(&task_id, &lane_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn postpone_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    lane_id: String,
+    project_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.postpone_task(&task_id, &lane_id)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn start_external_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    project_id: String,
+    lane_id: Option<String>,
+    estimated_minutes: i32,
+    note: Option<String>,
+) -> Result<Task, String> {
+    let date = local_date_string();
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        // Resolve source lane and always land on a watch lane
+        let source_lane = lane_id.as_deref().and_then(|lid| db.get_day_lane(lid).ok());
+        match source_lane {
+            Some(ref lane) if lane.lane_type == DayLaneType::Watch => {
+                // Already in a watch lane — ensure assignment (idempotent)
+                db.assign_task_to_lane(&task_id, &lane.id, None).ok();
+            }
+            Some(ref focus_lane) => {
+                // Source is a focus lane — move task to the shared watch lane
+                let watch = db
+                    .find_or_create_watch_lane(&date, "等待外部")
+                    .map_err(|e| e.to_string())?;
+                db.move_task_between_lanes(&task_id, &focus_lane.id, &watch.id, None)
+                    .map_err(|e| e.to_string())?;
+            }
+            None => {
+                // No source lane (backlog / task not in any lane) — assign to watch lane
+                let watch = db
+                    .find_or_create_watch_lane(&date, "等待外部")
+                    .map_err(|e| e.to_string())?;
+                db.assign_task_to_lane(&task_id, &watch.id, None)
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        db.start_external_task(&task_id, estimated_minutes, note.as_deref())
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn complete_external_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    project_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.complete_external_task(&task_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn review_external_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    project_id: String,
+    action: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.review_external_task(&task_id, &action)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn set_task_estimated_minutes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+    minutes: i32,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.set_task_estimated_minutes(&task_id, minutes)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn rename_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_id: String,
+    name: String,
+) -> Result<Branch, String> {
+    let branch = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.rename_branch(&branch_id, &name).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
     Ok(branch)
 }
 
 #[tauri::command]
-pub fn archive_branch(
-    id: String,
-    state: State<AppState>,
-    app: tauri::AppHandle,
+pub fn list_archived_branches(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<Branch>, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .list_archived_branches(&project_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn unarchive_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_id: String,
+) -> Result<Branch, String> {
+    let branch = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.unarchive_branch(&branch_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(branch)
+}
+
+#[tauri::command]
+pub fn delete_project(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute(
-        "UPDATE branches SET archived = 1 WHERE id = ?1",
-        params![id],
-    )
-    .map_err(|e| e.to_string())?;
-    let _ = app.emit("branch-archived", &id);
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.delete_project(&project_id).map_err(|e| e.to_string())?;
+    }
+    let fallback = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.list_projects().ok().and_then(|p| p.first().map(|x| x.id.clone()))
+    };
+    if let Some(pid) = fallback {
+        emit_snapshot(&app, &state, &pid)?;
+    } else {
+        emit_runway_only(&app, &state)?;
+    }
     Ok(())
 }
 
-// ─── tasks ────────────────────────────────────────────────────────────────────
+#[tauri::command]
+pub fn reorder_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+    direction: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_task(&task_id, &direction)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
 
 #[tauri::command]
-pub fn get_tasks(project_id: String, state: State<AppState>) -> Result<Vec<Task>, String> {
+pub fn focus_floating_for_quick_add(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("floating") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        let _ = window.set_size(tauri::LogicalSize::new(320.0, 400.0));
+        let _ = app.emit("floating-focus-input", ());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_projects(state: State<'_, AppState>) -> Result<Vec<ProjectSummary>, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .list_projects()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn create_project(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<String, String> {
+    let id = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let id = db.create_project(&name).map_err(|e| e.to_string())?;
+        db.set_active_project_id(&id).map_err(|e| e.to_string())?;
+        id
+    };
+    emit_snapshot(&app, &state, &id)?;
+    Ok(id)
+}
+
+#[tauri::command]
+pub fn set_active_project(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.set_active_project_id(&project_id)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn get_project_graph(state: State<'_, AppState>, project_id: String) -> Result<ProjectGraph, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_project_graph(&project_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_app_snapshot(state: State<'_, AppState>, project_id: Option<String>) -> Result<AppSnapshot, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = db
-        .prepare(
-            "SELECT id, branch_id, project_id, title, description, status, sort_order, created_at, completed_at
-             FROM tasks WHERE project_id = ?1
-             ORDER BY sort_order, rowid",
-        )
-        .map_err(|e| e.to_string())?;
-    stmt.query_map(params![project_id], |row| {
-        let status_str: String = row.get(5)?;
-        Ok(Task {
-            id: row.get(0)?,
-            branch_id: row.get(1)?,
-            project_id: row.get(2)?,
-            title: row.get(3)?,
-            description: row.get(4)?,
-            status: TaskStatus::from(status_str.as_str()),
-            sort_order: row.get(6)?,
-            created_at: row.get(7)?,
-            completed_at: row.get(8)?,
-        })
-    })
-    .map_err(|e| e.to_string())?
-    .collect::<Result<Vec<_>, _>>()
-    .map_err(|e| e.to_string())
+    let pid = project_id.unwrap_or_else(|| active_project_id(&db).unwrap_or_default());
+    db.build_app_snapshot(&pid).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn create_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    name: String,
+) -> Result<String, String> {
+    let id = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.create_branch(&project_id, &name).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(id)
 }
 
 #[tauri::command]
 pub fn create_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
     project_id: String,
-    title: String,
     branch_id: Option<String>,
-    state: State<AppState>,
-    app: tauri::AppHandle,
-) -> Result<Task, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let id = Uuid::new_v4().to_string();
-    let created_at = Utc::now().to_rfc3339();
-    let status = if branch_id.is_some() {
-        TaskStatus::Ready
-    } else {
-        TaskStatus::Inbox
-    };
-    let sort_order: i32 = match &branch_id {
-        Some(bid) => db
-            .query_row(
-                "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tasks WHERE branch_id = ?1",
-                params![bid],
-                |row| row.get(0),
-            )
-            .unwrap_or(0),
-        None => 0,
-    };
-    db.execute(
-        "INSERT INTO tasks (id, branch_id, project_id, title, status, sort_order, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![id, branch_id, project_id, title, status.as_str(), sort_order, created_at],
-    )
-    .map_err(|e| e.to_string())?;
-    let task = Task {
-        id,
-        branch_id,
-        project_id,
-        title,
-        description: None,
-        status,
-        sort_order,
-        created_at,
-        completed_at: None,
-    };
-    let _ = app.emit("task-created", &task);
-    Ok(task)
-}
-
-#[tauri::command]
-pub fn update_task_status(
-    id: String,
-    status: TaskStatus,
-    state: State<AppState>,
-    app: tauri::AppHandle,
-) -> Result<Vec<Task>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let completed_at = if status == TaskStatus::Done {
-        Some(Utc::now().to_rfc3339())
-    } else {
-        None
-    };
-    db.execute(
-        "UPDATE tasks SET status = ?1, completed_at = ?2 WHERE id = ?3",
-        params![status.as_str(), completed_at, id],
-    )
-    .map_err(|e| e.to_string())?;
-
-    let updated = query_task(&db, &id)?;
-    let mut affected = vec![updated];
-
-    if status == TaskStatus::Done {
-        let mut newly_ready = cascade_ready(&db, &id)?;
-        affected.append(&mut newly_ready);
-    }
-
-    let _ = app.emit("tasks-updated", &affected);
-    Ok(affected)
-}
-
-#[tauri::command]
-pub fn update_task(
-    id: String,
     title: String,
-    description: Option<String>,
-    state: State<AppState>,
-    app: tauri::AppHandle,
-) -> Result<Task, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute(
-        "UPDATE tasks SET title = ?1, description = ?2 WHERE id = ?3",
-        params![title, description, id],
-    )
-    .map_err(|e| e.to_string())?;
-    let task = query_task(&db, &id)?;
-    let _ = app.emit("tasks-updated", &vec![task.clone()]);
-    Ok(task)
+) -> Result<CreateTaskResult, String> {
+    let (task, branch_suggestion) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+
+        let task_id = if let Some(bid) = &branch_id {
+            db.append_task_to_branch(&project_id, bid, &title)
+                .map_err(|e| e.to_string())?
+        } else {
+            db.create_inbox_task(&project_id, &title)
+                .map_err(|e| e.to_string())?
+        };
+
+        if branch_id.is_some() {
+            db.recalculate_project_statuses(&project_id)
+                .map_err(|e| e.to_string())?;
+        }
+
+        let task = db.get_task(&task_id).map_err(|e| e.to_string())?;
+        state.undo.push(UndoAction::TaskCreated {
+            task_id: task_id.clone(),
+        });
+
+        let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
+        let branch_suggestion = if branch_id.is_none() {
+            suggest_branch(&title, &graph.branches)
+        } else {
+            None
+        };
+
+        (task, branch_suggestion)
+    };
+
+    emit_snapshot(&app, &state, &project_id)?;
+
+    Ok(CreateTaskResult {
+        task,
+        branch_suggestion,
+    })
 }
 
 #[tauri::command]
 pub fn assign_task_to_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
     task_id: String,
     branch_id: String,
-    state: State<AppState>,
-    app: tauri::AppHandle,
 ) -> Result<Task, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let sort_order: i32 = db
-        .query_row(
-            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tasks WHERE branch_id = ?1",
-            params![branch_id],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-    db.execute(
-        "UPDATE tasks SET branch_id = ?1, status = 'ready', sort_order = ?2 WHERE id = ?3",
-        params![branch_id, sort_order, task_id],
-    )
-    .map_err(|e| e.to_string())?;
-    let task = query_task(&db, &task_id)?;
-    let _ = app.emit("tasks-updated", &vec![task.clone()]);
+    let (project_id, task) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let project_id = db.project_id_for_branch(&branch_id).map_err(|e| e.to_string())?;
+        let task = db
+            .assign_task_to_branch(&task_id, &branch_id)
+            .map_err(|e| e.to_string())?;
+        (project_id, task)
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn add_dependency(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    depends_on_task_id: String,
+) -> Result<(), String> {
+    let project_id = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.add_dependency(&task_id, &depends_on_task_id)
+            .map_err(|e| e.to_string())?;
+        let project_id = db.project_id_for_task(&task_id).map_err(|e| e.to_string())?;
+        db.recalculate_project_statuses(&project_id)
+            .map_err(|e| e.to_string())?;
+        project_id
+    };
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn remove_dependency(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    depends_on_task_id: String,
+) -> Result<(), String> {
+    let project_id = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let project_id = db.project_id_for_task(&task_id).map_err(|e| e.to_string())?;
+        db.remove_dependency(&task_id, &depends_on_task_id)
+            .map_err(|e| e.to_string())?;
+        project_id
+    };
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn update_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+    title: Option<String>,
+    description: Option<String>,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.update_task(&task_id, title.as_deref(), description.as_deref())
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
     Ok(task)
 }
 
 #[tauri::command]
 pub fn delete_task(
-    id: String,
-    state: State<AppState>,
-    app: tauri::AppHandle,
-) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute("DELETE FROM tasks WHERE id = ?1", params![id])
-        .map_err(|e| e.to_string())?;
-    let _ = app.emit("task-deleted", &id);
-    Ok(())
-}
-
-// ─── dependencies ─────────────────────────────────────────────────────────────
-
-#[tauri::command]
-pub fn add_dependency(
-    task_id: String,
-    depends_on_task_id: String,
-    state: State<AppState>,
-    app: tauri::AppHandle,
-) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute(
-        "INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id) VALUES (?1, ?2)",
-        params![task_id, depends_on_task_id],
-    )
-    .map_err(|e| e.to_string())?;
-    db.execute(
-        "UPDATE tasks SET status = 'pending' WHERE id = ?1 AND status = 'ready'",
-        params![task_id],
-    )
-    .map_err(|e| e.to_string())?;
-    let task = query_task(&db, &task_id)?;
-    let _ = app.emit("tasks-updated", &vec![task]);
-    Ok(())
-}
-
-#[tauri::command]
-pub fn remove_dependency(
-    task_id: String,
-    depends_on_task_id: String,
-    state: State<AppState>,
-    app: tauri::AppHandle,
-) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute(
-        "DELETE FROM task_dependencies WHERE task_id = ?1 AND depends_on_task_id = ?2",
-        params![task_id, depends_on_task_id],
-    )
-    .map_err(|e| e.to_string())?;
-
-    let pending_count: i32 = db
-        .query_row(
-            "SELECT COUNT(*) FROM task_dependencies td
-             JOIN tasks t ON td.depends_on_task_id = t.id
-             WHERE td.task_id = ?1 AND t.status != 'done'",
-            params![task_id],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-
-    if pending_count == 0 {
-        db.execute(
-            "UPDATE tasks SET status = 'ready' WHERE id = ?1 AND status = 'pending'",
-            params![task_id],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    let task = query_task(&db, &task_id)?;
-    let _ = app.emit("tasks-updated", &vec![task]);
-    Ok(())
-}
-
-#[tauri::command]
-pub fn get_dependencies(
+    app: AppHandle,
+    state: State<'_, AppState>,
     project_id: String,
-    state: State<AppState>,
-) -> Result<Vec<(String, String)>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = db
-        .prepare(
-            "SELECT td.task_id, td.depends_on_task_id
-             FROM task_dependencies td
-             JOIN tasks t ON td.task_id = t.id
-             WHERE t.project_id = ?1",
-        )
-        .map_err(|e| e.to_string())?;
-    stmt.query_map(params![project_id], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    task_id: String,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.delete_task(&task_id).map_err(|e| e.to_string())?;
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn set_task_status(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+    status: String,
+) -> Result<Task, String> {
+    let task_status = TaskStatus::from_str(&status).ok_or_else(|| format!("Invalid status: {status}"))?;
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let previous = db.get_task(&task_id).map_err(|e| e.to_string())?;
+        state.undo.push(UndoAction::TaskStatus {
+            task_id: task_id.clone(),
+            previous_status: previous.status.clone(),
+        });
+        db.set_task_status(&task_id, task_status)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn activate_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    project_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.activate_task(&task_id, &project_id)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn complete_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+    project_id: String,
+) -> Result<CompleteTaskResult, String> {
+    let (completed_task, recommendations) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let previous = db.get_task(&task_id).map_err(|e| e.to_string())?;
+        state.undo.push(UndoAction::TaskStatus {
+            task_id: task_id.clone(),
+            previous_status: previous.status,
+        });
+        db.complete_task(&task_id, &project_id)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(CompleteTaskResult {
+        completed_task,
+        recommendations,
     })
-    .map_err(|e| e.to_string())?
-    .collect::<Result<Vec<_>, _>>()
-    .map_err(|e| e.to_string())
 }
 
-// ─── recommendations ──────────────────────────────────────────────────────────
-
 #[tauri::command]
-pub fn get_recommendations(
+pub fn pin_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
     project_id: String,
-    state: State<AppState>,
-) -> Result<Vec<Task>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-
-    // Fetch all ready tasks
-    let mut stmt = db
-        .prepare(
-            "SELECT id, branch_id, project_id, title, description, status, sort_order, created_at, completed_at
-             FROM tasks WHERE project_id = ?1 AND status = 'ready'",
-        )
-        .map_err(|e| e.to_string())?;
-
-    let ready_tasks: Vec<Task> = stmt
-        .query_map(params![project_id], |row| {
-            let status_str: String = row.get(5)?;
-            Ok(Task {
-                id: row.get(0)?,
-                branch_id: row.get(1)?,
-                project_id: row.get(2)?,
-                title: row.get(3)?,
-                description: row.get(4)?,
-                status: TaskStatus::from(status_str.as_str()),
-                sort_order: row.get(6)?,
-                created_at: row.get(7)?,
-                completed_at: row.get(8)?,
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
-    // Score each ready task: count how many tasks depend on it (critical path proxy)
-    let mut scored: Vec<(Task, i32)> = ready_tasks
-        .into_iter()
-        .map(|task| {
-            let downstream_count: i32 = db
-                .query_row(
-                    "WITH RECURSIVE deps(id) AS (
-                         SELECT task_id FROM task_dependencies WHERE depends_on_task_id = ?1
-                         UNION
-                         SELECT td.task_id FROM task_dependencies td JOIN deps d ON td.depends_on_task_id = d.id
-                     )
-                     SELECT COUNT(*) FROM deps",
-                    params![task.id],
-                    |row| row.get(0),
-                )
-                .unwrap_or(0);
-            (task, downstream_count)
-        })
-        .collect();
-
-    // Sort: pinned first, then by downstream count descending, then by sort_order
-    scored.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.sort_order.cmp(&b.0.sort_order)));
-
-    Ok(scored.into_iter().map(|(t, _)| t).collect())
+    task_id: String,
+    pinned: bool,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.set_task_pinned(&task_id, pinned)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
 }
 
-// ─── floating widget ──────────────────────────────────────────────────────────
+#[tauri::command]
+pub fn archive_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_id: String,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.archive_branch(&branch_id).map_err(|e| e.to_string())?;
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
 
 #[tauri::command]
-pub fn open_floating_widget(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("floating-widget") {
-        let _ = window.show();
-        let _ = window.set_focus();
-    } else {
-        tauri::WebviewWindowBuilder::new(
-            &app,
-            "floating-widget",
-            tauri::WebviewUrl::App("?window=floating-widget".into()),
-        )
-        .title("Human Composer")
-        .inner_size(320.0, 420.0)
-        .always_on_top(true)
-        .decorations(false)
-        .resizable(false)
-        .skip_taskbar(true)
-        .build()
-        .map_err(|e| e.to_string())?;
+pub fn delete_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_id: String,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.delete_branch(&branch_id).map_err(|e| e.to_string())?;
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn reorder_branches(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_ids: Vec<String>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_branches(&project_id, &branch_ids)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn set_task_priority(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+    priority: Option<i32>,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.set_task_priority(&task_id, priority)
+            .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn archive_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.archive_task(&task_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    emit_runway_only(&app, &state)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn unarchive_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    task_id: String,
+) -> Result<Task, String> {
+    let task = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.unarchive_task(&task_id).map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn list_archived_tasks(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<Task>, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_archived_tasks_for_project(&project_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn reorder_branch_tasks(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    branch_id: String,
+    task_ids: Vec<String>,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorder_branch_tasks(&branch_id, &task_ids)
+            .map_err(|e| e.to_string())?;
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn suggest_branch_for_task(
+    state: State<'_, AppState>,
+    project_id: String,
+    title: String,
+) -> Result<Option<BranchSuggestion>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
+    Ok(suggest_branch(&title, &graph.branches))
+}
+
+#[tauri::command]
+pub fn undo_last_action(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<(), String> {
+    let action = state
+        .undo
+        .pop()
+        .ok_or_else(|| "Nothing to undo".to_string())?;
+
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        match action {
+            UndoAction::TaskStatus {
+                task_id,
+                previous_status,
+            } => {
+                db.set_task_status(&task_id, previous_status)
+                    .map_err(|e| e.to_string())?;
+            }
+            UndoAction::TaskCreated { task_id } => {
+                db.delete_task(&task_id).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    emit_snapshot(&app, &state, &project_id)
+}
+
+#[tauri::command]
+pub fn list_project_sources() -> Vec<String> {
+    crate::sources::registry()
+        .into_iter()
+        .map(|s| s.source_type().to_string())
+        .collect()
+}
+
+#[tauri::command]
+pub fn show_main_window(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        let _ = app.emit("main-show-today", ());
     }
     Ok(())
 }
 
 #[tauri::command]
-pub fn close_floating_widget(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("floating-widget") {
-        let _ = window.hide();
+pub fn toggle_floating_expanded(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("floating") {
+        let expanded = window
+            .is_visible()
+            .map_err(|e| e.to_string())?
+            && window.inner_size().map_err(|e| e.to_string())?.height > 100;
+        if expanded {
+            let _ = window.set_size(tauri::LogicalSize::new(220.0, 52.0));
+        } else {
+            let _ = window.set_size(tauri::LogicalSize::new(320.0, 400.0));
+        }
     }
     Ok(())
 }

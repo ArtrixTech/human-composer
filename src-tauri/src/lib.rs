@@ -1,102 +1,169 @@
+mod auto_assign;
 mod commands;
 mod db;
 mod models;
-pub mod sources;
+mod recommend;
+mod sources;
+mod today;
+mod tray;
+mod undo;
+mod runway;
 
-use rusqlite::Connection;
 use std::sync::Mutex;
-use tauri::Manager;
 
-pub struct AppState {
-    pub db: Mutex<Connection>,
-}
-
-fn build_tray(app: &tauri::App) -> tauri::Result<()> {
-    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-    use tauri::tray::TrayIconBuilder;
-
-    let show = MenuItem::with_id(app, "show", "Open Human Composer", true, None::<&str>)?;
-    let widget = MenuItem::with_id(app, "widget", "Toggle Widget", true, None::<&str>)?;
-    let sep = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &widget, &sep, &quit])?;
-
-    TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
-        .menu(&menu)
-        .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
-            "widget" => {
-                if let Some(window) = app.get_webview_window("floating-widget") {
-                    if window.is_visible().unwrap_or(false) {
-                        let _ = window.hide();
-                    } else {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                } else {
-                    let _ = commands::open_floating_widget(app.clone());
-                }
-            }
-            "quit" => {
-                app.exit(0);
-            }
-            _ => {}
-        })
-        .build(app)?;
-
-    Ok(())
-}
+use commands::AppState;
+use db::Database;
+use tauri::{Emitter, Listener, Manager};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let complete_shortcut =
+        Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyD);
+    let quick_add_shortcut =
+        Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyN);
+    let palette_shortcut = Shortcut::new(Some(Modifiers::SUPER), Code::KeyK);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .setup(|app| {
-            let app_data_dir = app
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler({
+                    let complete = complete_shortcut.clone();
+                    let quick_add = quick_add_shortcut.clone();
+                    let palette = palette_shortcut.clone();
+                    move |app, shortcut, event| {
+                        if event.state != ShortcutState::Pressed {
+                            return;
+                        }
+                        if shortcut == &complete {
+                            let _ = app.emit("shortcut-complete-task", ());
+                        } else if shortcut == &quick_add {
+                            let _ = app.emit("shortcut-quick-add", ());
+                        } else if shortcut == &palette {
+                            let _ = app.emit("shortcut-command-palette", ());
+                        }
+                    }
+                })
+                .build(),
+        )
+        .setup(move |app| {
+            let data_dir = app
                 .path()
                 .app_data_dir()
-                .expect("Failed to resolve app data directory");
-            std::fs::create_dir_all(&app_data_dir)
-                .expect("Failed to create app data directory");
-
-            let db_path = app_data_dir.join("human_composer.db");
-            let conn = Connection::open(&db_path).expect("Failed to open SQLite database");
-            db::migrate(&conn).expect("Database migration failed");
+                .expect("failed to resolve app data dir");
+            let db_path = data_dir.join("human-composer.db");
+            let database = Database::open(&db_path).expect("failed to open database");
 
             app.manage(AppState {
-                db: Mutex::new(conn),
+                db: Mutex::new(database),
+                undo: undo::UndoStack::new(),
             });
 
-            build_tray(app)?;
+            tray::setup_tray(app.handle())?;
+            let _ = tray::refresh_tray_menu(app.handle());
+
+            for label in ["main", "floating"] {
+                if let Some(window) = app.get_webview_window(label) {
+                    let _ = window.set_shadow(true);
+                }
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::window::{Effect, EffectsBuilder};
+                for label in ["main", "floating"] {
+                    if let Some(window) = app.get_webview_window(label) {
+                        let _ = window.set_effects(
+                            EffectsBuilder::new()
+                                .effects(vec![Effect::ContentBackground])
+                                .radius(12.0)
+                                .build(),
+                        );
+                    }
+                }
+            }
+
+            if let Some(floating) = app.get_webview_window("floating") {
+                let _ = floating.set_maximizable(false);
+                let _ = floating.set_resizable(false);
+            }
+
+            let handle = app.handle().clone();
+            app.handle().listen("graph-updated", move |_event| {
+                let handle = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = tray::refresh_tray_menu(&handle);
+                });
+            });
+            let handle2 = app.handle().clone();
+            app.handle().listen("runway-updated", move |_event| {
+                let handle = handle2.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = tray::refresh_tray_menu(&handle);
+                });
+            });
+
+            let gs = app.global_shortcut();
+            gs.register(complete_shortcut)?;
+            gs.register(quick_add_shortcut)?;
+            gs.register(palette_shortcut)?;
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::get_projects,
-            commands::create_project,
+            commands::get_today_snapshot,
+            commands::get_day_runway_snapshot,
+            commands::auto_populate_runway,
+            commands::create_day_lane,
+            commands::close_day_lane,
+            commands::rename_day_lane,
+            commands::reorder_day_lanes,
+            commands::assign_task_to_lane,
+            commands::remove_task_from_lane,
+            commands::reorder_lane_tasks,
+            commands::move_task_between_lanes,
+            commands::claim_task,
+            commands::postpone_task,
+            commands::start_external_task,
+            commands::complete_external_task,
+            commands::review_external_task,
+            commands::set_task_estimated_minutes,
+            commands::rename_branch,
+            commands::list_archived_branches,
+            commands::unarchive_branch,
             commands::delete_project,
-            commands::get_branches,
+            commands::reorder_task,
+            commands::focus_floating_for_quick_add,
+            commands::list_projects,
+            commands::create_project,
+            commands::set_active_project,
+            commands::get_project_graph,
+            commands::get_app_snapshot,
             commands::create_branch,
-            commands::archive_branch,
-            commands::get_tasks,
             commands::create_task,
-            commands::update_task_status,
-            commands::update_task,
             commands::assign_task_to_branch,
-            commands::delete_task,
             commands::add_dependency,
             commands::remove_dependency,
-            commands::get_dependencies,
-            commands::get_recommendations,
-            commands::open_floating_widget,
-            commands::close_floating_widget,
+            commands::update_task,
+            commands::delete_task,
+            commands::set_task_status,
+            commands::activate_task,
+            commands::complete_task,
+            commands::pin_task,
+            commands::archive_branch,
+            commands::delete_branch,
+            commands::reorder_branches,
+            commands::set_task_priority,
+            commands::archive_task,
+            commands::unarchive_task,
+            commands::list_archived_tasks,
+            commands::reorder_branch_tasks,
+            commands::suggest_branch_for_task,
+            commands::undo_last_action,
+            commands::list_project_sources,
+            commands::show_main_window,
+            commands::toggle_floating_expanded,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

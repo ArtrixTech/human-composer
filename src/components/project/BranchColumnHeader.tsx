@@ -1,0 +1,214 @@
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { NodeProps } from "@xyflow/react";
+import { MoreVertical } from "lucide-react";
+
+import { useAppStore } from "../../store/appStore";
+import "./BranchColumnHeader.css";
+
+export interface BranchColumnHeaderData {
+  label: string;
+  branchId: string;
+  progress?: string;
+  taskCount?: number;
+  onRename?: (branchId: string, name: string) => void;
+  onArchive?: (branchId: string) => void;
+  onDelete?: (branchId: string, taskCount: number) => void;
+  canMoveLeft?: boolean;
+  canMoveRight?: boolean;
+  onMoveLeft?: () => void;
+  onMoveRight?: () => void;
+  [key: string]: unknown;
+}
+
+const MENU_WIDTH = 128;
+
+function BranchColumnHeaderComponent({ data }: NodeProps) {
+  const nodeData = data as BranchColumnHeaderData;
+  const {
+    label,
+    branchId,
+    progress,
+    taskCount = 0,
+    onRename,
+    onArchive,
+    onDelete,
+    canMoveLeft,
+    canMoveRight,
+    onMoveLeft,
+    onMoveRight,
+  } = nodeData;
+
+  const renameBranch = useAppStore((s) => s.renameBranch);
+  const archiveBranch = useAppStore((s) => s.archiveBranch);
+  const deleteBranch = useAppStore((s) => s.deleteBranch);
+
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(label);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => setName(label), [label]);
+
+  const updateMenuPos = () => {
+    const rect = menuBtnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const left = Math.min(
+      Math.max(8, rect.right - MENU_WIDTH),
+      window.innerWidth - MENU_WIDTH - 8,
+    );
+    setMenuPos({ top: rect.bottom + 4, left });
+  };
+
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+    updateMenuPos();
+    window.addEventListener("resize", updateMenuPos);
+    window.addEventListener("scroll", updateMenuPos, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPos);
+      window.removeEventListener("scroll", updateMenuPos, true);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      if (menuBtnRef.current?.contains(target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
+
+  const commitRename = () => {
+    const trimmed = name.trim();
+    setEditing(false);
+    if (trimmed && trimmed !== label) {
+      if (onRename) onRename(branchId, trimmed);
+      else void renameBranch(branchId, trimmed);
+    } else {
+      setName(label);
+    }
+  };
+
+  const confirmDelete = () => {
+    setMenuOpen(false);
+    if (onDelete) {
+      onDelete(branchId, taskCount);
+      return;
+    }
+    const msg =
+      taskCount > 0
+        ? `删除支线「${label}」及其 ${taskCount} 个任务？此操作不可撤销。`
+        : `删除空支线「${label}」？`;
+    if (window.confirm(msg)) void deleteBranch(branchId);
+  };
+
+  const menu = menuOpen && menuPos
+    ? createPortal(
+        <div
+          ref={menuRef}
+          className="branch-column-header__menu branch-column-header__menu--portal"
+          style={{ top: menuPos.top, left: menuPos.left }}
+        >
+          {canMoveLeft && onMoveLeft && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onMoveLeft();
+              }}
+            >
+              左移
+            </button>
+          )}
+          {canMoveRight && onMoveRight && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onMoveRight();
+              }}
+            >
+              右移
+            </button>
+          )}
+          <button type="button" onClick={() => { setMenuOpen(false); setEditing(true); }}>
+            重命名
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              if (window.confirm(`归档支线「${label}」？`)) {
+                if (onArchive) onArchive(branchId);
+                else void archiveBranch(branchId);
+              }
+            }}
+          >
+            归档
+          </button>
+          <button type="button" className="danger" onClick={confirmDelete}>
+            删除
+          </button>
+        </div>,
+        document.body,
+      )
+    : null;
+
+  return (
+    <>
+      <div className="branch-column-header">
+        {editing ? (
+          <input
+            className="branch-column-header__input"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") {
+                setName(label);
+                setEditing(false);
+              }
+            }}
+          />
+        ) : (
+          <div className="branch-column-header__title">
+            <span className="branch-column-header__name">{label}</span>
+            {progress && <span className="branch-column-header__progress">{progress}</span>}
+          </div>
+        )}
+        <div className="branch-column-header__menu-wrap">
+          <button
+            ref={menuBtnRef}
+            type="button"
+            className="branch-column-header__menu-btn"
+            aria-label="支线菜单"
+            aria-expanded={menuOpen}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (menuOpen) {
+                setMenuOpen(false);
+                return;
+              }
+              updateMenuPos();
+              setMenuOpen(true);
+            }}
+          >
+            <MoreVertical size={14} />
+          </button>
+        </div>
+      </div>
+      {menu}
+    </>
+  );
+}
+
+export const BranchColumnHeader = memo(BranchColumnHeaderComponent);

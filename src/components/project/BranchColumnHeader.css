@@ -1,0 +1,110 @@
+.branch-column-header {
+  width: var(--kanban-card-width);
+  height: var(--kanban-header-height);
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  cursor: default;
+}
+
+.branch-column-header__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.branch-column-header__name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-column-header__progress {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.branch-column-header__input {
+  flex: 1;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: var(--bg-base);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  color: var(--text-primary);
+}
+
+.branch-column-header__menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.branch-column-header:hover .branch-column-header__menu-wrap,
+.branch-column-header__menu-wrap:has(.branch-column-header__menu-btn[aria-expanded="true"]) {
+  opacity: 1;
+}
+
+.branch-column-header__menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.branch-column-header__menu-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.branch-column-header__menu {
+  min-width: 128px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 4px;
+}
+
+.branch-column-header__menu--portal {
+  position: fixed;
+  z-index: 2000;
+}
+
+.branch-column-header__menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.branch-column-header__menu button:hover {
+  background: var(--bg-hover);
+}
+
+.branch-column-header__menu button.danger {
+  color: var(--color-danger);
+}

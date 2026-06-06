@@ -1,11 +1,10 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import FloatingWidget from './components/FloatingWidget';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import "./styles/theme.css";
+import App from "./App";
 
-const isWidget =
-  new URLSearchParams(window.location.search).get('window') === 'floating-widget';
-
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>{isWidget ? <FloatingWidget /> : <App />}</React.StrictMode>,
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
 );
