@@ -10,14 +10,14 @@
 
 **Commit:** `56d26e2`
 
-## 2026-05-26 — 产品设计文档
+## 2026-05-26 — 产品设计与文档更新 (prev: `56d26e2`)
 
-- 添加 `.cursor/plans/human_composer_产品设计_7db1e838.plan.md`：完整产品设计方案
-- 涵盖设计哲学、分层交互模型、数据模型、UI 组件层级、推荐逻辑、菜单栏指示器与分阶段实施路径
+- 完成产品设计讨论，写入 `.cursor/plans/human_composer_产品设计_7db1e838.plan.md`
+- 核心设计决策：泳道式 DAG（横向）、细粒度任务、三层交互面（菜单栏→悬浮窗→主窗口）、完成→推荐自动循环、Toast+Undo 无弹窗模式、SQLite 持久化
+- 更新 `AGENTS.md`：新增设计哲学 #3（前额叶保护）、#4（细粒度、低阻力）及交互原则；扩充核心功能描述
 
 **Commit:** `3a07785`
 
-## 2026-05-26 — Phase 1–4 完整实现
 
 - 更新 `AGENTS.md`：设计哲学 #3 前额叶保护、#4 细粒度低阻力
 - **Phase 1**：SQLite 数据模型 + CRUD、泳道 DAG 渲染、Linear 风格 UI 骨架（无边框窗口 + macOS traffic lights）
