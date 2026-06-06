@@ -4,22 +4,22 @@ overview: Complete redesign of the daily task management core interface, replaci
 todos:
   - id: phase1-data
     content: "Phase 1: 数据层 + 后端 API -- Rust 模型、SQLite migration、泳道 CRUD、DayRunwaySnapshot、claim_task、auto_populate"
-    status: pending
+    status: completed
   - id: phase2-core
     content: "Phase 2: DayRunway 核心组件 -- 主容器、泳道行、任务块、领取/完成循环、AppShell 集成、Store 改造"
-    status: pending
+    status: completed
   - id: phase3-lanes
     content: "Phase 3: 泳道管理 + 拖拽 -- 新增/关闭/重命名、BacklogPool、跨泳道拖拽、任务重分配"
-    status: pending
+    status: completed
   - id: phase4-external
     content: "Phase 4: 外部任务 -- ExternalTaskBlock、外部执行启动/完成、待审核状态、非打断通知"
-    status: pending
+    status: completed
   - id: phase5-layers
     content: "Phase 5: 三层交互面适配 -- Tray 多泳道、悬浮窗紧凑列表、Command Palette、昨日未完成、专注度指示"
-    status: pending
+    status: completed
   - id: phase6-polish
     content: "Phase 6: 打磨 -- 动画过渡、键盘导航、计时器、响应式布局"
-    status: pending
+    status: completed
 isProject: false
 ---
 
