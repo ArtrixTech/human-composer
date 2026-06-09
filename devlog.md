@@ -210,4 +210,4 @@
 - 关闭 floating 窗口原生 shadow / ContentBackground，改由 CSS `floating-shell` 负责圆角与阴影
 - `floating.html` / `floating-window.css`：根节点填满 webview，避免透明窗矩形边框
 
-**Commit:** _(pending)_
+**Commit:** `5a9efd7`
