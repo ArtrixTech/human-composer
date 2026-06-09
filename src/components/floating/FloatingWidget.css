@@ -45,12 +45,15 @@
 .floating__collapsed-lanes {
   display: flex;
   flex-direction: column;
-  cursor: grab;
-  touch-action: none;
   padding-right: 22px;
 }
 
-.floating__collapsed-lanes:active {
+.floating__lane-row-name--drag {
+  cursor: grab;
+  touch-action: none;
+}
+
+.floating__lane-row-name--drag:active {
   cursor: grabbing;
 }
 
@@ -107,13 +110,21 @@
   width: 0;
 }
 
-.floating__lane-row--priority-h::before {
+.floating__lane-row--tier-t1::before {
   width: 3px;
   background: var(--priority-high);
 }
 
-.floating__lane-row--priority-m::before {
+.floating__lane-row--tier-t2::before {
   background: var(--priority-medium);
+}
+
+.floating__lane-row--tier-t3::before {
+  background: var(--text-tertiary);
+}
+
+.floating__lane-row--tier-t4::before {
+  background: var(--priority-low);
 }
 
 .floating__lane-row--compact {
@@ -640,19 +651,28 @@
   font-weight: 600;
 }
 
-.floating__lane-tier--h {
+.floating__lane-tier--t1 {
   background: var(--priority-high-bg);
   color: var(--priority-high);
 }
 
-.floating__lane-tier--m {
+.floating__lane-tier--t2 {
   background: var(--priority-medium-bg);
   color: var(--priority-medium);
 }
 
-.floating__lane-tier--l {
+.floating__lane-tier--t3 {
+  background: rgba(113, 113, 122, 0.12);
+  color: var(--text-secondary);
+}
+
+.floating__lane-tier--t4 {
   background: var(--priority-low-bg);
   color: var(--priority-low);
+}
+
+.floating__icon-btn--add:hover {
+  color: var(--accent);
 }
 
 .floating__lane-external-list {

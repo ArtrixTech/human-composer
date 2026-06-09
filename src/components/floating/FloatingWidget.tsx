@@ -45,6 +45,7 @@ export function FloatingWidget() {
     ctx: TodayTaskContext;
     laneId: string;
   } | null>(null);
+  const [targetLaneId, setTargetLaneId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -114,6 +115,7 @@ export function FloatingWidget() {
     setCreateProjectId(null);
     setBranchSuggestion(null);
     setPendingTaskId(null);
+    setTargetLaneId(null);
   };
 
   const resize = (next: boolean) => {
@@ -173,6 +175,18 @@ export function FloatingWidget() {
       showFeedback("无可用项目");
       return;
     }
+    if (targetLaneId) {
+      const laneId = targetLaneId;
+      const laneName = snapshot?.lanes.find((l) => l.lane.id === laneId)?.lane.name;
+      const result = await api.createTask(projectId, trimmed);
+      await api.assignTaskToLane(result.action.id, laneId);
+      setTitle("");
+      setTargetLaneId(null);
+      setSnapshot(await api.getDayRunwaySnapshot());
+      showFeedback(laneName ? `已加入 ${laneName}` : "已加入泳道");
+      inputRef.current?.focus();
+      return;
+    }
     const result = await api.createTask(projectId, trimmed);
     setTitle("");
     const projects = await api.listProjects();
@@ -203,10 +217,20 @@ export function FloatingWidget() {
     inputRef.current?.focus();
   };
 
-  const skipAssign = () => {
+  const skipAssign = async () => {
+    if (pendingTaskId && targetLaneId) {
+      await api.assignTaskToLane(pendingTaskId, targetLaneId);
+    }
     resetPick();
+    setSnapshot(await api.getDayRunwaySnapshot());
     showFeedback("已加入 Inbox");
     inputRef.current?.focus();
+  };
+
+  const focusLaneAdd = (laneId: string) => {
+    setTargetLaneId(laneId);
+    void resize(true);
+    setTimeout(() => inputRef.current?.focus(), 80);
   };
 
   const openMainApp = () => void api.showMainWindow();
@@ -219,7 +243,12 @@ export function FloatingWidget() {
     onDelegate: openDelegate,
     onMarkExternalDone: (ctx: TodayTaskContext) => void markExternalDone(ctx),
     onReview: openMainApp,
+    onQuickAdd: focusLaneAdd,
   };
+
+  const targetLaneName = targetLaneId
+    ? (snapshot?.lanes.find((l) => l.lane.id === targetLaneId)?.lane.name ?? null)
+    : null;
 
   const delegateDialog = delegateTarget ? (
     <ExternalTaskDialog
@@ -237,12 +266,7 @@ export function FloatingWidget() {
       <div className="floating-shell">
         {!expanded ? (
           <div ref={contentRef} className="floating floating--collapsed">
-            <div
-              className="floating__collapsed-lanes"
-              data-tauri-drag-region="deep"
-              onDoubleClick={openMainApp}
-              title="双击打开主窗口"
-            >
+            <div className="floating__collapsed-lanes">
               {lanes.map((lane) => (
                 <FloatingLaneRow
                   key={lane.lane.id}
@@ -351,7 +375,7 @@ export function FloatingWidget() {
               ) : (
                 <input
                   ref={inputRef}
-                  placeholder="快速添加…"
+                  placeholder={targetLaneName ? `添加到 ${targetLaneName}…` : "快速添加…"}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onKeyDown={(e) => {

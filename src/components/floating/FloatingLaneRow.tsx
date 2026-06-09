@@ -1,9 +1,9 @@
-import { Bot, Check, Clock } from "lucide-react";
+import { Bot, Check, Clock, Plus } from "lucide-react";
 
 import type { DayLaneSnapshot, RecommendedTask, TodayTaskContext } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { laneColorStyle } from "../runway/laneColors";
-import { PRIORITY_LABELS } from "../../utils/priorityUtils";
+import { LANE_TIER_LABELS } from "../../utils/laneTierUtils";
 import {
   findLaneClaimableOptions,
   getLaneExternalTasks,
@@ -29,6 +29,7 @@ export interface FloatingLaneRowProps {
   onDelegate: (ctx: TodayTaskContext, laneId: string) => void;
   onMarkExternalDone: (ctx: TodayTaskContext) => void;
   onReview: () => void;
+  onQuickAdd?: (laneId: string) => void;
   focusColorIndex?: number | null;
 }
 
@@ -42,6 +43,7 @@ export function FloatingLaneRow({
   onDelegate,
   onMarkExternalDone,
   onReview,
+  onQuickAdd,
   focusColorIndex = null,
 }: FloatingLaneRowProps) {
   const laneColorsEnabled = useAppStore((s) => s.laneColorsEnabled);
@@ -59,14 +61,19 @@ export function FloatingLaneRow({
   return (
     <section
       style={colorStyle}
-      className={`floating__lane-row floating__lane-row--${variant} floating__lane-row--${isWatch ? "watch" : "focus"} floating__lane-row--${state} floating__lane-row--priority-${tier.toLowerCase()}${hasLaneColor ? " floating__lane-row--colored" : ""}`}
+      className={`floating__lane-row floating__lane-row--${variant} floating__lane-row--${isWatch ? "watch" : "focus"} floating__lane-row--${state} floating__lane-row--tier-${tier.toLowerCase()}${hasLaneColor ? " floating__lane-row--colored" : ""}`}
     >
-      <div className="floating__lane-row-main">
-        <span className="floating__lane-row-name">
+      <div className="floating__lane-row-main" data-tauri-drag-region="false">
+        <span
+          className={`floating__lane-row-name${variant === "compact" ? " floating__lane-row-name--drag" : ""}`}
+          data-tauri-drag-region={variant === "compact" ? "true" : undefined}
+          onDoubleClick={variant === "compact" ? onReview : undefined}
+          title={variant === "compact" ? "拖动移动窗口，双击打开主窗口" : undefined}
+        >
           {laneSnapshot.lane.name}
           {!isWatch && variant === "comfortable" && (
             <span className={`floating__lane-tier floating__lane-tier--${tier.toLowerCase()}`}>
-              {PRIORITY_LABELS[tier]}
+              {LANE_TIER_LABELS[tier]}
             </span>
           )}
         </span>
@@ -74,7 +81,12 @@ export function FloatingLaneRow({
           <span className="floating__lane-row-state">{STATE_LABEL[state]}</span>
         )}
         {state === "claimable" && claimableOptions.length > 0 ? (
-          <div className="floating__lane-picks" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="floating__lane-picks"
+            data-tauri-drag-region={false}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             {claimableOptions.map((option, index) => (
               <button
                 key={option.action.id}
@@ -85,7 +97,12 @@ export function FloatingLaneRow({
                     : "floating__lane-pick"
                 }
                 title={option.action.title}
-                onClick={() => onClaim(option.action.id, laneId, option.projectId)}
+                data-tauri-drag-region={false}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onClaim(option.action.id, laneId, option.projectId);
+                }}
               >
                 {option.action.title}
               </button>
@@ -105,7 +122,24 @@ export function FloatingLaneRow({
           <span className="floating__lane-row-empty">暂无行动</span>
         )}
       </div>
-      <div className="floating__lane-row-actions" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="floating__lane-row-actions"
+        data-tauri-drag-region={false}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {!isWatch && onQuickAdd && (
+          <button
+            type="button"
+            className="floating__icon-btn floating__icon-btn--add"
+            title="快速添加到泳道（Inbox）"
+            aria-label="添加"
+            data-tauri-drag-region={false}
+            onClick={() => onQuickAdd(laneId)}
+          >
+            <Plus size={14} />
+          </button>
+        )}
         {state === "active" && task && (
           <div className="floating__quick-actions">
             <button
