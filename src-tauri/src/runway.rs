@@ -28,6 +28,7 @@ pub struct RunwayBuildInput<'a> {
     pub dependencies: &'a [TaskDependency],
     pub day_end_time: &'a str,
     pub carry_over_count: i32,
+    pub enabled_lane_count: i32,
 }
 
 pub fn build_day_runway_snapshot(input: RunwayBuildInput<'_>) -> DayRunwaySnapshot {
@@ -252,6 +253,7 @@ pub fn build_day_runway_snapshot(input: RunwayBuildInput<'_>) -> DayRunwaySnapsh
         day_end_time: input.day_end_time.to_string(),
         carry_over_count: input.carry_over_count,
         focus_lane_count,
+        enabled_lane_count: input.enabled_lane_count,
     }
 }
 

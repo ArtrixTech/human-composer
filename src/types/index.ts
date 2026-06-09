@@ -1,5 +1,8 @@
 export type PriorityLevel = "H" | "M" | "L";
 
+/** Swimlane tier: 主线 → 副线 → 次要 → 可选 */
+export type LaneTier = "T1" | "T2" | "T3" | "T4";
+
 export type ActionStatus = "inbox" | "pending" | "ready" | "active" | "done";
 /** @deprecated Use ActionStatus */
 export type TaskStatus = ActionStatus;
@@ -145,7 +148,7 @@ export interface DayLane {
   date: string;
   name: string;
   laneType: DayLaneType;
-  priorityTier: PriorityLevel;
+  priorityTier: LaneTier;
   sortOrder: number;
   createdAt: string;
 }
@@ -177,6 +180,7 @@ export interface DayRunwaySnapshot {
   dayEndTime: string;
   carryOverCount: number;
   focusLaneCount: number;
+  enabledLaneCount: number;
 }
 
 export interface CompleteActionResult {
@@ -262,6 +266,7 @@ interface WireDayRunwaySnapshot {
   dayEndTime: string;
   carryOverCount: number;
   focusLaneCount: number;
+  enabledLaneCount: number;
 }
 
 interface WireTodaySnapshot {
@@ -354,6 +359,7 @@ export function parseDayRunwaySnapshot(w: WireDayRunwaySnapshot): DayRunwaySnaps
     dayEndTime: w.dayEndTime,
     carryOverCount: w.carryOverCount,
     focusLaneCount: w.focusLaneCount,
+    enabledLaneCount: w.enabledLaneCount,
   };
 }
 

@@ -3,9 +3,9 @@ import type { PriorityLevel } from "../types";
 export const PRIORITY_ORDER: PriorityLevel[] = ["H", "M", "L"];
 
 export const PRIORITY_LABELS: Record<PriorityLevel, string> = {
-  H: "重要",
-  M: "普通",
-  L: "可选",
+  H: "高",
+  M: "中",
+  L: "低",
 };
 
 export function nextPriority(current: PriorityLevel): PriorityLevel {

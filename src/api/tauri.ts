@@ -11,7 +11,7 @@ import type {
   Outcome,
   LlmConfig,
   OutcomeSuggestion,
-  PriorityLevel,
+  LaneTier,
   ProjectGraph,
   ProjectSummary,
   TodaySnapshot,
@@ -69,11 +69,23 @@ export function autoPopulateRunway(date?: string): Promise<void> {
   return invoke("auto_populate_runway", { date: date ?? null });
 }
 
+export function getEnabledLaneCount(): Promise<number> {
+  return invoke("get_enabled_lane_count");
+}
+
+export function setEnabledLaneCount(count: number): Promise<void> {
+  return invoke("set_enabled_lane_count", { count });
+}
+
+export function reorganizeRunwayLanes(date?: string): Promise<number> {
+  return invoke("reorganize_runway_lanes", { date: date ?? null });
+}
+
 export function createDayLane(
   name: string,
   laneType: DayLaneType,
   date?: string,
-  priorityTier?: PriorityLevel,
+  priorityTier?: LaneTier,
 ): Promise<DayLane> {
   return invoke("create_day_lane", {
     date: date ?? null,

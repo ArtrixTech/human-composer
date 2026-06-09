@@ -6,7 +6,8 @@ use crate::db::Database;
 use crate::llm::{get_llm_config, set_llm_config, suggest_outcome_with_llm, test_llm_connection};
 use crate::models::{
     AppSnapshot, Branch, BranchSuggestion, CompleteTaskResult, CreateTaskResult, DayLane,
-    DayLaneType, DayRunwaySnapshot, LlmConfig, PriorityLevel, ProjectGraph, ProjectSummary, Task,
+    DayLaneType, DayRunwaySnapshot, LaneTier, LlmConfig, PriorityLevel, ProjectGraph, ProjectSummary,
+    Task,
     TaskStatus, TodaySnapshot,
 };
 use crate::undo::{UndoAction, UndoStack};
@@ -77,6 +78,44 @@ pub fn get_day_runway_snapshot(state: State<'_, AppState>) -> Result<DayRunwaySn
 }
 
 #[tauri::command]
+pub fn get_enabled_lane_count(state: State<'_, AppState>) -> Result<i32, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_enabled_lane_count()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_enabled_lane_count(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    count: i32,
+) -> Result<(), String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.set_enabled_lane_count(count).map_err(|e| e.to_string())?;
+    }
+    emit_runway_only(&app, &state)
+}
+
+#[tauri::command]
+pub fn reorganize_runway_lanes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    date: Option<String>,
+) -> Result<i32, String> {
+    let date = date.unwrap_or_else(local_date_string);
+    let moved = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.reorganize_focus_lanes(&date).map_err(|e| e.to_string())?
+    };
+    emit_runway_only(&app, &state)?;
+    Ok(moved)
+}
+
+#[tauri::command]
 pub fn auto_populate_runway(state: State<'_, AppState>, date: Option<String>) -> Result<(), String> {
     let date = date.unwrap_or_else(local_date_string);
     {
@@ -98,8 +137,8 @@ pub fn create_day_lane(
     let date = date.unwrap_or_else(local_date_string);
     let lt = DayLaneType::from_str(&lane_type);
     let tier = priority_tier
-        .map(|p| PriorityLevel::from_str(&p))
-        .unwrap_or(PriorityLevel::Medium);
+        .map(|p| LaneTier::from_str(&p))
+        .unwrap_or(LaneTier::Sub);
     let lane = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.create_day_lane_with_tier(&date, &name, lt, tier)

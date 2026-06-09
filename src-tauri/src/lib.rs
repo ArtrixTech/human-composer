@@ -122,6 +122,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_today_snapshot,
             commands::get_day_runway_snapshot,
+            commands::get_enabled_lane_count,
+            commands::set_enabled_lane_count,
+            commands::reorganize_runway_lanes,
             commands::auto_populate_runway,
             commands::create_day_lane,
             commands::close_day_lane,

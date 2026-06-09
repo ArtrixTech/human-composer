@@ -59,7 +59,9 @@ interface AppStore {
   setAddLaneOpen: (open: boolean) => void;
   dismissRecommend: () => void;
 
-  createLane: (name: string, laneType: DayLaneType, priorityTier?: import("../types").PriorityLevel) => Promise<void>;
+  createLane: (name: string, laneType: DayLaneType, priorityTier?: import("../types").LaneTier) => Promise<void>;
+  setEnabledLaneCount: (count: number) => Promise<void>;
+  reorganizeRunway: () => Promise<void>;
   closeLane: (laneId: string) => Promise<void>;
   renameLane: (laneId: string, name: string) => Promise<void>;
   assignToLane: (taskId: string, laneId: string, position?: number) => Promise<void>;
@@ -302,6 +304,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await api.createDayLane(name, laneType, undefined, priorityTier);
     await get().refreshRunway();
     useToastStore.getState().push({ message: `已创建泳道「${name}」` });
+  },
+
+  setEnabledLaneCount: async (count) => {
+    await api.setEnabledLaneCount(count);
+    await get().refreshRunway();
+  },
+
+  reorganizeRunway: async () => {
+    const moved = await api.reorganizeRunwayLanes();
+    await get().refreshRunway();
+    useToastStore.getState().push({
+      message: moved > 0 ? `已整理 ${moved} 项行动` : "泳道已是最优分配",
+    });
   },
 
   closeLane: async (laneId) => {

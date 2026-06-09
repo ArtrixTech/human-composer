@@ -191,6 +191,49 @@
   flex-shrink: 0;
 }
 
+.runway-header__lane-count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+}
+
+.runway-header__lane-count-btn {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.runway-header__lane-count-btn--active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.runway-header__organize {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.runway-header__organize:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
 .runway-header__budget {
   font-size: 10px;
   color: var(--text-secondary);
@@ -342,22 +385,27 @@
   flex-shrink: 0;
 }
 
-.lane-section__tier--h {
+.lane-section__tier--t1 {
   background: var(--priority-high-bg);
   color: var(--priority-high);
 }
 
-.lane-section__tier--m {
+.lane-section__tier--t2 {
   background: var(--priority-medium-bg);
   color: var(--priority-medium);
 }
 
-.lane-section__tier--l {
+.lane-section__tier--t3 {
+  background: rgba(113, 113, 122, 0.12);
+  color: var(--text-secondary);
+}
+
+.lane-section__tier--t4 {
   background: var(--priority-low-bg);
   color: var(--priority-low);
 }
 
-.lane-section--tier-h {
+.lane-section--tier-t1 {
   border-left-width: 3px;
 }
 

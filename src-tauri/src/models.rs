@@ -47,9 +47,87 @@ impl PriorityLevel {
 
     pub fn label_zh(&self) -> &'static str {
         match self {
-            Self::High => "重要",
-            Self::Medium => "普通",
-            Self::Low => "可选",
+            Self::High => "高",
+            Self::Medium => "中",
+            Self::Low => "低",
+        }
+    }
+}
+
+/// Swimlane priority tier (主线 → 副线 → 次要 → 可选). Distinct from action `PriorityLevel`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum LaneTier {
+    #[serde(rename = "T1")]
+    Main,
+    #[serde(rename = "T2")]
+    Sub,
+    #[serde(rename = "T3")]
+    Minor,
+    #[serde(rename = "T4")]
+    #[default]
+    Optional,
+}
+
+impl LaneTier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Main => "T1",
+            Self::Sub => "T2",
+            Self::Minor => "T3",
+            Self::Optional => "T4",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value.to_uppercase().as_str() {
+            "T1" | "MAIN" | "H" | "HIGH" => Self::Main,
+            "T2" | "SUB" | "M" | "MEDIUM" => Self::Sub,
+            "T3" | "MINOR" => Self::Minor,
+            "T4" | "OPT" | "OPTIONAL" | "L" | "LOW" => Self::Optional,
+            _ => Self::Optional,
+        }
+    }
+
+    pub fn sort_key(&self) -> i32 {
+        match self {
+            Self::Main => 0,
+            Self::Sub => 1,
+            Self::Minor => 2,
+            Self::Optional => 3,
+        }
+    }
+
+    pub fn from_sort_key(key: i32) -> Self {
+        match key.clamp(0, 3) {
+            0 => Self::Main,
+            1 => Self::Sub,
+            2 => Self::Minor,
+            _ => Self::Optional,
+        }
+    }
+
+    pub fn label_zh(&self) -> &'static str {
+        match self {
+            Self::Main => "主线",
+            Self::Sub => "副线",
+            Self::Minor => "次要",
+            Self::Optional => "可选",
+        }
+    }
+
+    pub fn from_action_priority(p: PriorityLevel) -> Self {
+        match p {
+            PriorityLevel::High => Self::Main,
+            PriorityLevel::Medium => Self::Sub,
+            PriorityLevel::Low => Self::Minor,
+        }
+    }
+
+    pub fn to_action_priority(self) -> PriorityLevel {
+        match self {
+            Self::Main => PriorityLevel::High,
+            Self::Sub => PriorityLevel::Medium,
+            Self::Minor | Self::Optional => PriorityLevel::Low,
         }
     }
 }
@@ -229,7 +307,7 @@ pub struct DayLane {
     pub date: String,
     pub name: String,
     pub lane_type: DayLaneType,
-    pub priority_tier: PriorityLevel,
+    pub priority_tier: LaneTier,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
 }
@@ -387,6 +465,7 @@ pub struct DayRunwaySnapshot {
     pub day_end_time: String,
     pub carry_over_count: i32,
     pub focus_lane_count: i32,
+    pub enabled_lane_count: i32,
 }
 
 // Concept aliases — JSON/DB wire names stay branches/tasks/branchId (see AGENTS.md Glossary).

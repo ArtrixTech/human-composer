@@ -228,3 +228,12 @@
 - **交互减负**：`PriorityPicker` / `DurationPicker` 替换数字输入；Kanban 卡片间距 16px、Handle 扩大、依赖快捷选择；列头/列背景 UI 抛光
 
 **Commit:** `d810d67` (also `46cc5cb` priority, `a675ddc` llm)
+
+## 2026-06-09 — 泳道四档、整理与悬浮窗修复 (prev: `813fbba`)
+
+- **泳道四档**：`LaneTier` T1–T4（主线/副线/次要/可选）替代 H/M/L 泳道档位；DB 迁移旧泳道名与 tier；`enabled_lane_count` 设置（默认 3）
+- **顶栏**：1–4 按钮切换启用泳道数；**整理**按钮手动按行动优先级重分配；调整数量后自动调用 `reorganize_focus_lanes`
+- **悬浮窗**：修复折叠态 drag-region 吞点击导致胶囊无法领取；泳道名保留拖动区；每泳道 **+** 快速 Inbox 入泳道
+- **行动优先级标签**：H/M/L 显示改为高/中/低，与泳道档位解耦
+
+**Commit:** (pending)

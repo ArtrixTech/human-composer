@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 import type { DayLaneSnapshot, TaskDependency } from "../../types";
 import { useAppStore } from "../../store/appStore";
-import { PRIORITY_LABELS } from "../../utils/priorityUtils";
+import { LANE_TIER_LABELS } from "../../utils/laneTierUtils";
 import { laneColorStyle } from "./laneColors";
 import { LaneTrack } from "./LaneTrack";
 import { partitionLaneTasks } from "./runwayTaskUtils";
@@ -140,7 +140,7 @@ export function LaneRow({
             </button>
             {!isWatch && (
               <span className={`lane-section__tier lane-section__tier--${laneSnapshot.lane.priorityTier.toLowerCase()}`}>
-                {PRIORITY_LABELS[laneSnapshot.lane.priorityTier]}
+                {LANE_TIER_LABELS[laneSnapshot.lane.priorityTier]}
               </span>
             )}
             {needsReview && <span className="lane-section__review-dot" title="待审核" />}

@@ -1,0 +1,21 @@
+.lane-tier-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lane-tier-picker__btn {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.lane-tier-picker__btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(94, 106, 210, 0.12);
+}

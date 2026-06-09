@@ -1,4 +1,5 @@
-import { Check, CheckCircle2, ChevronDown, Clock, Palette, Play } from "lucide-react";
+import { ArrowDownUp, Check, CheckCircle2, ChevronDown, Clock, Palette, Play } from "lucide-react";
+import { LANE_TIER_LABELS, LANE_TIER_ORDER } from "../../utils/laneTierUtils";
 import { useState, type ReactNode } from "react";
 
 import type { DayRunwaySnapshot } from "../../types";
@@ -26,6 +27,9 @@ export function RunwayHeader({
   const laneColorsEnabled = useAppStore((s) => s.laneColorsEnabled);
   const toggleLaneColors = useAppStore((s) => s.toggleLaneColors);
   const reviewExternal = useAppStore((s) => s.reviewExternal);
+  const setEnabledLaneCount = useAppStore((s) => s.setEnabledLaneCount);
+  const reorganizeRunway = useAppStore((s) => s.reorganizeRunway);
+  const enabledLaneCount = snapshot.enabledLaneCount ?? 3;
 
   const [showCompleted, setShowCompleted] = useState(false);
 
@@ -164,6 +168,33 @@ export function RunwayHeader({
         </div>
 
         <div className="runway-header__right">
+          <div className="runway-header__lane-count" role="group" aria-label="启用泳道数量">
+            {LANE_TIER_ORDER.map((tier, index) => {
+              const count = index + 1;
+              const active = enabledLaneCount === count;
+              return (
+                <button
+                  key={tier}
+                  type="button"
+                  className={`runway-header__lane-count-btn${active ? " runway-header__lane-count-btn--active" : ""}`}
+                  title={`启用 ${count} 条泳道（至${LANE_TIER_LABELS[tier]}）`}
+                  aria-pressed={active}
+                  onClick={() => void setEnabledLaneCount(count)}
+                >
+                  {count}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="runway-header__organize"
+            title="按优先级重新分配泳道中的行动"
+            onClick={() => void reorganizeRunway()}
+          >
+            <ArrowDownUp size={12} />
+            整理
+          </button>
           <span className={`runway-header__budget${over ? " runway-header__budget--over" : ""}`}>
             {forecast} · {remaining}
             {over &&

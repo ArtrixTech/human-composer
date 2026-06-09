@@ -10,6 +10,7 @@ import type {
   RecommendedTask,
   TodayTaskContext,
 } from "../../types";
+import { laneTierSortKey } from "../../utils/laneTierUtils";
 
 export type LaneState = "active" | "review" | "claimable" | "external" | "idle";
 
@@ -165,20 +166,14 @@ export function normalizeLaneTaskOrder(
   return [...focusIds, ...extIds];
 }
 
-function tierSortKey(tier: DayLaneSnapshot["lane"]["priorityTier"]): number {
-  if (tier === "H") return 0;
-  if (tier === "M") return 1;
-  return 2;
-}
-
-/** Focus lanes by priority tier H→M→L, watch lanes last. */
+/** Focus lanes by tier T1→T4, watch lanes last. */
 export function sortLanesForDisplay(lanes: DayLaneSnapshot[]): DayLaneSnapshot[] {
   return [...lanes].sort((a, b) => {
     const aWatch = a.lane.laneType === "watch";
     const bWatch = b.lane.laneType === "watch";
     if (aWatch !== bWatch) return aWatch ? 1 : -1;
-    const ta = tierSortKey(a.lane.priorityTier);
-    const tb = tierSortKey(b.lane.priorityTier);
+    const ta = laneTierSortKey(a.lane.priorityTier);
+    const tb = laneTierSortKey(b.lane.priorityTier);
     if (ta !== tb) return ta - tb;
     return a.lane.sortOrder - b.lane.sortOrder;
   });
