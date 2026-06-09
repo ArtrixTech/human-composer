@@ -211,3 +211,9 @@
 - `floating.html` / `floating-window.css`：根节点填满 webview，避免透明窗矩形边框
 
 **Commit:** `5a9efd7`
+
+## 2026-06-09 — 概念重命名计划全部完成 (prev: `3ab8c64`)
+
+- 更新 `.cursor/plans/支线任务概念重命名_2e0b640e.plan.md`：Phase 0–5 todos 标记为 completed
+
+**Commit:** `111ceea`
