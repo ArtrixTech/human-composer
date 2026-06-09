@@ -224,16 +224,16 @@ erDiagram
 ### 层级关系
 
 - **Project**：顶层容器（例如"Human Composer 开发"、"博客重构"）。`source_type` 字段预留外部同步接口（`manual` / `linear` / `github` 等）
-- **Branch（支线/泳道）**：项目内的一条并行执行轨道（例如"前端开发"、"后端 API"、"设计"）。可归档
-- **Task**：支线内的具体可执行项，细粒度（几分钟到半小时级别）
-- **TaskDependency**：任务间的阻塞关系，支持跨支线依赖
+- **Outcome（目标，代码 `Outcome`，DB `branches`）**：项目内可并行推进的、可衡量的交付成果（类 OKR 的 KR，例如「登录页可上线」）。可归档。UI 称「目标」，≠ 泳道
+- **Action（行动，代码 `Action`，DB `tasks`）**：目标内的具体可执行步骤，细粒度（几分钟到半小时级别）
+- **ActionDependency（行动依赖，DB `task_dependencies`）**：行动间的阻塞关系，支持跨目标依赖
 
-### 任务状态机
+### 行动状态机
 
 ```mermaid
 stateDiagram-v2
     [*] --> Inbox: 创建
-    Inbox --> Pending: 分配到支线
+    Inbox --> Pending: 分配到目标
     Pending --> Ready: 依赖全部完成
     Ready --> Active: 用户开始执行
     Active --> Done: 用户标记完成
@@ -241,8 +241,8 @@ stateDiagram-v2
     Done --> [*]
 ```
 
-- **Inbox**：刚创建，尚未分配到任何支线
-- **Pending**：已在支线中，但有未完成的前置依赖
+- **Inbox**：刚创建，尚未分配到任何目标
+- **Pending**：已在目标中，但有未完成的前置依赖
 - **Ready**：所有依赖已满足，可以开始
 - **Active**：当前正在执行
 - **Done**：已完成
