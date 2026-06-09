@@ -203,4 +203,4 @@
 - **可选**：今日安排标题栏调色板按钮切换；偏好存 `localStorage`（`hc-lane-colors-enabled`，默认开启）
 - **同步**：主窗口 `LaneRow` 与悬浮窗 `FloatingLaneRow` 共用同一套索引与开关
 
-**Commit:** _(pending)_
+**Commit:** `4eead85`
