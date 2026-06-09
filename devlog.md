@@ -237,3 +237,12 @@
 - **行动优先级标签**：H/M/L 显示改为高/中/低，与泳道档位解耦
 
 **Commit:** `ba7c1c9`, `422c998`
+
+## 2026-06-09 — UI overhaul: DOM 画布、今日视图、侧栏图标 (prev: `0f93c4d`)
+
+- **项目画布**：移除 React Flow；纯 DOM 竖列 + `ActionCard` + SVG 正交 block 连线（淡灰白、右侧双端口）；`@dnd-kit` 列内/跨列拖拽；移除 `@xyflow/react` 与死代码（`DAGCanvas`、`ActionNode` 等）
+- **今日视图**：顶栏溢出菜单减负；预算截断；泳道边框与任务卡层叠/信息密度修复
+- **侧栏/项目**：`PROJECT_ICONS` 改 lucide key + `ProjectIcon`；项目设置菜单（优先级/色/图标）；DB emoji→key 迁移；侧栏项目行布局与色点+线条 icon 指示
+- **布局**：竖列顶部留白与列间距 token 调整；修复项目页无限重渲染黑屏
+
+**Commit:** (pending)

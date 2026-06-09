@@ -1,6 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { NodeProps } from "@xyflow/react";
 import { MoreVertical } from "lucide-react";
 
 import { useAppStore } from "../../store/appStore";
@@ -23,21 +22,19 @@ export interface OutcomeColumnHeaderData {
 
 const MENU_WIDTH = 128;
 
-function OutcomeColumnHeaderComponent({ data }: NodeProps) {
-  const nodeData = data as OutcomeColumnHeaderData;
-  const {
-    label,
-    branchId,
-    progress,
-    taskCount = 0,
-    onRename,
-    onArchive,
-    onDelete,
-    canMoveLeft,
-    canMoveRight,
-    onMoveLeft,
-    onMoveRight,
-  } = nodeData;
+function OutcomeColumnHeaderComponent({
+  label,
+  branchId,
+  progress,
+  taskCount = 0,
+  onRename,
+  onArchive,
+  onDelete,
+  canMoveLeft,
+  canMoveRight,
+  onMoveLeft,
+  onMoveRight,
+}: OutcomeColumnHeaderData) {
 
   const renameBranch = useAppStore((s) => s.renameBranch);
   const archiveBranch = useAppStore((s) => s.archiveBranch);

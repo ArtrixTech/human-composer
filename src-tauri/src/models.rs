@@ -193,6 +193,8 @@ pub struct Project {
     pub source_type: String,
     pub source_ref: Option<String>,
     pub priority: PriorityLevel,
+    pub color: String,
+    pub icon: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -342,6 +344,9 @@ pub struct ProjectGraph {
 pub struct ProjectSummary {
     pub id: String,
     pub name: String,
+    pub priority: PriorityLevel,
+    pub color: String,
+    pub icon: String,
     pub active_count: i32,
     pub ready_count: i32,
     pub done_count: i32,

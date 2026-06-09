@@ -108,11 +108,14 @@ impl Database {
         self.ensure_column("tasks", "archived", "INTEGER NOT NULL DEFAULT 0")?;
         self.ensure_column("tasks", "postponed", "INTEGER NOT NULL DEFAULT 0")?;
         self.ensure_column("projects", "priority", "TEXT NOT NULL DEFAULT 'L'")?;
+        self.ensure_column("projects", "color", "TEXT NOT NULL DEFAULT '#5e6ad2'")?;
+        self.ensure_column("projects", "icon", "TEXT NOT NULL DEFAULT 'folder'")?;
         self.ensure_column("day_lanes", "priority_tier", "TEXT NOT NULL DEFAULT 'M'")?;
         self.ensure_column("day_lane_tasks", "sticky", "INTEGER NOT NULL DEFAULT 0")?;
 
         self.migrate_priorities_to_hml()?;
         self.migrate_lane_tiers_to_four()?;
+        self.migrate_project_icons_to_keys()?;
 
         if self.get_setting("day_end_time")?.is_none() {
             self.set_setting("day_end_time", DEFAULT_DAY_END)?;
@@ -175,6 +178,34 @@ impl Database {
         }
 
         self.set_setting("lane_tier_four_migrated", "1")?;
+        Ok(())
+    }
+
+    fn migrate_project_icons_to_keys(&self) -> rusqlite::Result<()> {
+        if self.get_setting("project_icon_keys_migrated")?.as_deref() == Some("1") {
+            return Ok(());
+        }
+        const ICON_MAP: [(&str, &str); 8] = [
+            ("📁", "folder"),
+            ("🚀", "rocket"),
+            ("🎯", "target"),
+            ("⚡", "zap"),
+            ("🔬", "flask"),
+            ("🎨", "palette"),
+            ("📊", "chart"),
+            ("🛠️", "wrench"),
+        ];
+        for (emoji, key) in ICON_MAP {
+            self.conn.execute(
+                "UPDATE projects SET icon = ?1 WHERE icon = ?2",
+                params![key, emoji],
+            )?;
+        }
+        self.conn.execute(
+            "UPDATE projects SET icon = 'folder' WHERE icon = '🛠' OR icon = ''",
+            [],
+        )?;
+        self.set_setting("project_icon_keys_migrated", "1")?;
         Ok(())
     }
 
@@ -415,9 +446,14 @@ impl Database {
         Ok(())
     }
 
+    const PROJECT_COLORS: [&'static str; 7] =
+        ["#f97316", "#5e6ad2", "#22c55e", "#a855f7", "#ec4899", "#14b8a6", "#eab308"];
+    const PROJECT_ICONS: [&'static str; 8] =
+        ["folder", "rocket", "target", "zap", "flask", "palette", "chart", "wrench"];
+
     pub fn list_projects(&self) -> rusqlite::Result<Vec<ProjectSummary>> {
         let mut stmt = self.conn.prepare(
-            "SELECT p.id, p.name,
+            "SELECT p.id, p.name, p.priority, p.color, p.icon,
                     COALESCE(SUM(CASE WHEN t.status = 'active' THEN 1 ELSE 0 END), 0) AS active_count,
                     COALESCE(SUM(CASE WHEN t.status = 'ready' THEN 1 ELSE 0 END), 0) AS ready_count,
                     COALESCE(SUM(CASE WHEN t.status = 'done' THEN 1 ELSE 0 END), 0) AS done_count,
@@ -426,17 +462,22 @@ impl Database {
              LEFT JOIN branches b ON b.project_id = p.id AND b.archived = 0
              LEFT JOIN tasks t ON t.branch_id = b.id
              GROUP BY p.id
-             ORDER BY p.created_at ASC",
+             ORDER BY CASE p.priority WHEN 'H' THEN 0 WHEN 'M' THEN 1 ELSE 2 END,
+                      p.created_at ASC",
         )?;
 
         let rows = stmt.query_map([], |row| {
+            let priority_raw: String = row.get(2)?;
             Ok(ProjectSummary {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                active_count: row.get(2)?,
-                ready_count: row.get(3)?,
-                done_count: row.get(4)?,
-                task_count: row.get(5)?,
+                priority: PriorityLevel::from_str(&priority_raw),
+                color: row.get(3)?,
+                icon: row.get(4)?,
+                active_count: row.get(5)?,
+                ready_count: row.get(6)?,
+                done_count: row.get(7)?,
+                task_count: row.get(8)?,
             })
         })?;
 
@@ -464,11 +505,45 @@ impl Database {
     pub fn create_project(&self, name: &str) -> rusqlite::Result<String> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM projects", [], |row| row.get(0))?;
+        let color = Self::PROJECT_COLORS[count as usize % Self::PROJECT_COLORS.len()];
+        let icon = Self::PROJECT_ICONS[count as usize % Self::PROJECT_ICONS.len()];
         self.conn.execute(
-            "INSERT INTO projects (id, name, source_type, created_at) VALUES (?1, ?2, 'manual', ?3)",
-            params![id, name, now],
+            "INSERT INTO projects (id, name, source_type, priority, color, icon, created_at)
+             VALUES (?1, ?2, 'manual', 'L', ?3, ?4, ?5)",
+            params![id, name, color, icon, now],
         )?;
         Ok(id)
+    }
+
+    pub fn update_project(
+        &self,
+        project_id: &str,
+        priority: Option<PriorityLevel>,
+        color: Option<&str>,
+        icon: Option<&str>,
+    ) -> rusqlite::Result<Project> {
+        if let Some(p) = priority {
+            self.conn.execute(
+                "UPDATE projects SET priority = ?1 WHERE id = ?2",
+                params![p.as_str(), project_id],
+            )?;
+        }
+        if let Some(c) = color {
+            self.conn.execute(
+                "UPDATE projects SET color = ?1 WHERE id = ?2",
+                params![c, project_id],
+            )?;
+        }
+        if let Some(i) = icon {
+            self.conn.execute(
+                "UPDATE projects SET icon = ?1 WHERE id = ?2",
+                params![i, project_id],
+            )?;
+        }
+        self.get_project(project_id)
     }
 
     pub fn create_branch(&self, project_id: &str, name: &str) -> rusqlite::Result<String> {
@@ -549,7 +624,8 @@ impl Database {
 
     fn get_project(&self, project_id: &str) -> rusqlite::Result<Project> {
         self.conn.query_row(
-            "SELECT id, name, source_type, source_ref, priority, created_at FROM projects WHERE id = ?1",
+            "SELECT id, name, source_type, source_ref, priority, color, icon, created_at
+             FROM projects WHERE id = ?1",
             params![project_id],
             |row| {
                 let priority_raw: String = row.get(4)?;
@@ -559,7 +635,9 @@ impl Database {
                     source_type: row.get(2)?,
                     source_ref: row.get(3)?,
                     priority: PriorityLevel::from_str(&priority_raw),
-                    created_at: row.get::<_, String>(5)?.parse().unwrap_or_else(|_| Utc::now()),
+                    color: row.get(5)?,
+                    icon: row.get(6)?,
+                    created_at: row.get::<_, String>(7)?.parse().unwrap_or_else(|_| Utc::now()),
                 })
             },
         )

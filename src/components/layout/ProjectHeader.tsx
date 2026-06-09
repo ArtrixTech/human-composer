@@ -1,6 +1,10 @@
 import { ArrowRight } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { useAppStore } from "../../store/appStore";
+import { PRIORITY_LABELS } from "../../utils/priorityUtils";
+import { ProjectIcon } from "../shared/ProjectIcon";
+import { projectPriorityClass } from "../../utils/projectUtils";
 import "./ProjectHeader.css";
 
 export function ProjectHeader() {
@@ -24,8 +28,17 @@ export function ProjectHeader() {
 
   return (
     <header className="project-header">
-      <div className="project-header__row">
+      <div
+        className="project-header__row"
+        style={{ "--project-color": graph.project.color } as CSSProperties}
+      >
+        <span className="project-header__icon" aria-hidden>
+          <ProjectIcon name={graph.project.icon} size={16} />
+        </span>
         <h1 className="project-header__name">{graph.project.name}</h1>
+        <span className={`project-header__priority ${projectPriorityClass(graph.project.priority)}`}>
+          {graph.project.priority} {PRIORITY_LABELS[graph.project.priority]}
+        </span>
         <span className="project-header__scale">
           {graph.outcomes.length} 个目标 · {totalCount} 项行动
         </span>

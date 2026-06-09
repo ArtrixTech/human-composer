@@ -1,6 +1,15 @@
-import { ArrowDownUp, Check, CheckCircle2, ChevronDown, Clock, Palette, Play } from "lucide-react";
+import {
+  ArrowDownUp,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  MoreHorizontal,
+  Palette,
+  Play,
+} from "lucide-react";
 import { LANE_TIER_LABELS, LANE_TIER_ORDER } from "../../utils/laneTierUtils";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { DayRunwaySnapshot } from "../../types";
 import { useAppStore } from "../../store/appStore";
@@ -32,6 +41,18 @@ export function RunwayHeader({
   const enabledLaneCount = snapshot.enabledLaneCount ?? 3;
 
   const [showCompleted, setShowCompleted] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
 
   const { timeBudget } = snapshot;
   const over = timeBudget.remainingMinutes > timeBudget.availableMinutes;
@@ -45,6 +66,9 @@ export function RunwayHeader({
     ? `预计 ${timeBudget.estimatedFinishTime} 收工`
     : "暂无剩余";
   const remaining = `剩余 ${formatMinutesTotal(timeBudget.remainingMinutes)}`;
+  const budgetText = over
+    ? `${forecast} · ${remaining} · 超 ${formatMinutesTotal(timeBudget.remainingMinutes - timeBudget.availableMinutes)}`
+    : `${forecast} · ${remaining}`;
 
   const focusActives = findFocusActives(snapshot);
   const needsReview = findNeedsReview(snapshot);
@@ -168,37 +192,11 @@ export function RunwayHeader({
         </div>
 
         <div className="runway-header__right">
-          <div className="runway-header__lane-count" role="group" aria-label="启用泳道数量">
-            {LANE_TIER_ORDER.map((tier, index) => {
-              const count = index + 1;
-              const active = enabledLaneCount === count;
-              return (
-                <button
-                  key={tier}
-                  type="button"
-                  className={`runway-header__lane-count-btn${active ? " runway-header__lane-count-btn--active" : ""}`}
-                  title={`启用 ${count} 条泳道（至${LANE_TIER_LABELS[tier]}）`}
-                  aria-pressed={active}
-                  onClick={() => void setEnabledLaneCount(count)}
-                >
-                  {count}
-                </button>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            className="runway-header__organize"
-            title="按优先级重新分配泳道中的行动"
-            onClick={() => void reorganizeRunway()}
+          <span
+            className={`runway-header__budget${over ? " runway-header__budget--over" : ""}`}
+            title={budgetText}
           >
-            <ArrowDownUp size={12} />
-            整理
-          </button>
-          <span className={`runway-header__budget${over ? " runway-header__budget--over" : ""}`}>
-            {forecast} · {remaining}
-            {over &&
-              ` · 超 ${formatMinutesTotal(timeBudget.remainingMinutes - timeBudget.availableMinutes)}`}
+            {budgetText}
           </span>
           {completedCount > 0 && (
             <button
@@ -215,18 +213,75 @@ export function RunwayHeader({
               />
             </button>
           )}
-          <button
-            type="button"
-            className={`runway-header__lane-colors${laneColorsEnabled ? " runway-header__lane-colors--on" : ""}`}
-            onClick={toggleLaneColors}
-            title={laneColorsEnabled ? "关闭泳道配色" : "开启泳道配色"}
-            aria-pressed={laneColorsEnabled}
-          >
-            <Palette size={12} />
-          </button>
-          <button type="button" className="runway-header__add-lane" onClick={onAddLane}>
-            + 泳道
-          </button>
+          <div className="runway-header__overflow" ref={menuRef}>
+            <button
+              type="button"
+              className="runway-header__overflow-btn"
+              aria-label="更多操作"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <MoreHorizontal size={14} />
+            </button>
+            {menuOpen && (
+              <div className="runway-header__overflow-menu" role="menu">
+                <div className="runway-header__overflow-section">
+                  <span className="runway-header__overflow-label">启用泳道</span>
+                  <div className="runway-header__lane-count" role="group" aria-label="启用泳道数量">
+                    {LANE_TIER_ORDER.map((tier, index) => {
+                      const count = index + 1;
+                      const active = enabledLaneCount === count;
+                      return (
+                        <button
+                          key={tier}
+                          type="button"
+                          className={`runway-header__lane-count-btn${active ? " runway-header__lane-count-btn--active" : ""}`}
+                          title={`启用 ${count} 条泳道（至${LANE_TIER_LABELS[tier]}）`}
+                          aria-pressed={active}
+                          onClick={() => {
+                            void setEnabledLaneCount(count);
+                            setMenuOpen(false);
+                          }}
+                        >
+                          {count}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="runway-header__overflow-item"
+                  onClick={() => {
+                    void reorganizeRunway();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <ArrowDownUp size={12} />
+                  整理泳道
+                </button>
+                <button
+                  type="button"
+                  className={`runway-header__overflow-item${laneColorsEnabled ? " runway-header__overflow-item--on" : ""}`}
+                  aria-pressed={laneColorsEnabled}
+                  onClick={() => toggleLaneColors()}
+                >
+                  <Palette size={12} />
+                  {laneColorsEnabled ? "关闭泳道配色" : "开启泳道配色"}
+                </button>
+                <button
+                  type="button"
+                  className="runway-header__overflow-item runway-header__overflow-item--primary"
+                  onClick={() => {
+                    onAddLane();
+                    setMenuOpen(false);
+                  }}
+                >
+                  + 新建泳道
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       {showCompleted && <CompletedBar completed={snapshot.completedToday} listOnly />}

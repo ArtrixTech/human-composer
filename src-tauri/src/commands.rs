@@ -497,6 +497,30 @@ pub fn create_project(
 }
 
 #[tauri::command]
+pub fn update_project(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    priority: Option<String>,
+    color: Option<String>,
+    icon: Option<String>,
+) -> Result<crate::models::Project, String> {
+    let priority_level = priority.map(|p| PriorityLevel::from_str(&p));
+    let project = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.update_project(
+            &project_id,
+            priority_level,
+            color.as_deref(),
+            icon.as_deref(),
+        )
+        .map_err(|e| e.to_string())?
+    };
+    emit_snapshot(&app, &state, &project_id)?;
+    Ok(project)
+}
+
+#[tauri::command]
 pub fn set_active_project(
     app: AppHandle,
     state: State<'_, AppState>,

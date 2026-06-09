@@ -93,7 +93,7 @@
   background: var(--bg-hover);
 }
 
-.inbox-panel__archive {
+.inbox-panel__remove {
   flex-shrink: 0;
   display: flex;
   padding: 4px;
@@ -106,12 +106,12 @@
   transition: opacity 0.15s;
 }
 
-.inbox-panel__item:hover .inbox-panel__archive,
-.inbox-panel__item--active .inbox-panel__archive {
+.inbox-panel__item:hover .inbox-panel__remove,
+.inbox-panel__item--active .inbox-panel__remove {
   opacity: 1;
 }
 
-.inbox-panel__archive:hover {
+.inbox-panel__remove:hover {
   color: var(--color-danger);
 }
 

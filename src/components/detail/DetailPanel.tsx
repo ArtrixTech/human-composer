@@ -207,32 +207,13 @@ export function DetailPanel() {
       </div>
 
       <section className="detail-panel__deps">
-        <h3>依赖</h3>
-        <label className="detail-panel__add-dep">
-          添加阻塞于
-          <select
-            defaultValue=""
-            onChange={(e) => {
-              const depId = e.target.value;
-              if (!depId) return;
-              void api.addDependency(action.id, depId).then(() => refreshAll());
-              e.target.value = "";
-            }}
-          >
-            <option value="">选择行动…</option>
-            {graph?.actions
-              .filter((t) => t.id !== action.id)
-              .filter((t) => !upstream.some((d) => d.dependsOnTaskId === t.id))
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.title}
-                </option>
-              ))}
-          </select>
-        </label>
+        <h3>Block 依赖</h3>
+        <p className="detail-panel__dep-hint">
+          从行动卡片左侧 block 出线点拖至目标行动的入线点以建立阻塞关系
+        </p>
         <div className="detail-panel__dep-list">
           {upstream.length === 0 && downstream.length === 0 && (
-            <p className="detail-panel__dep-empty">在详情中管理跨目标依赖（下方列表）</p>
+            <p className="detail-panel__dep-empty">暂无 block 关系</p>
           )}
           {upstream.map((d) => {
             const dep = graph?.actions.find((t) => t.id === d.dependsOnTaskId);

@@ -20,7 +20,6 @@ export function AppShell() {
   const error = useAppStore((s) => s.error);
   const loading = useAppStore((s) => s.loading);
   const currentView = useAppStore((s) => s.currentView);
-  const graph = useAppStore((s) => s.graph);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
 
   useGraphSync();
@@ -42,7 +41,7 @@ export function AppShell() {
         <Sidebar />
         <main className="app-shell__main">
           {error && <div className="app-shell__error">{error}</div>}
-          {loading && !graph && currentView === "project" ? (
+          {loading && currentView === "project" ? (
             <div className="app-shell__loading">加载中…</div>
           ) : currentView === "today" ? (
             <DayRunway />

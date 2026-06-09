@@ -1,36 +1,150 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ReactFlow,
-  useEdgesState,
-  useNodesState,
-  type Connection,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
+  DndContext,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 
 import * as api from "../../api/tauri";
-import type { PriorityLevel } from "../../types";
-import { buildKanbanLayout, COLUMN_WIDTH } from "../../layout/kanbanLayout";
+import type { Action, Branch, PriorityLevel } from "../../types";
+import { orderTasksInColumn } from "../../layout/kanbanLayout";
+import { KANBAN_COLUMN_WIDTH } from "../../layout/kanbanTokens";
 import { useAppStore } from "../../store/appStore";
 import { nextPriority } from "./taskUtils";
-import { BlockingEdge, BlockingEdgeMarker, SequentialEdge } from "../dag/CustomEdges";
-import { ActionNode, AddTaskNode, type ActionNodeData } from "../dag/ActionNode";
+import { ActionCard } from "./ActionCard";
+import { AddActionCard } from "./AddActionCard";
+import { KanbanEdges } from "./KanbanEdges";
 import { OutcomeColumnHeader } from "./OutcomeColumnHeader";
+import { useBlockConnections } from "./useBlockConnections";
 import "./KanbanBoard.css";
 
-const nodeTypes = {
-  action: ActionNode,
-  outcomeHeader: OutcomeColumnHeader,
-  addTask: AddTaskNode,
-};
+function KanbanColumn({
+  branch,
+  tasks,
+  columnIndex,
+  columnCount,
+  graph,
+  topRecommendationId,
+  connecting,
+  highlightTarget,
+  onMoveColumn,
+  onRename,
+  onArchive,
+  onDelete,
+  onAddTask,
+  onSelect,
+  onStart,
+  onComplete,
+  onPause,
+  onArchiveTask,
+  onCyclePriority,
+  onRemoveDependency,
+  onPortPointerDown,
+}: {
+  branch: Branch;
+  tasks: Action[];
+  columnIndex: number;
+  columnCount: number;
+  graph: NonNullable<ReturnType<typeof useAppStore.getState>["graph"]>;
+  topRecommendationId: string | null;
+  connecting: boolean;
+  highlightTarget: string | null;
+  onMoveColumn: (branchId: string, direction: "left" | "right") => void;
+  onRename: (branchId: string, name: string) => void;
+  onArchive: (branchId: string) => void;
+  onDelete: (branchId: string) => void;
+  onAddTask: (branchId: string, title: string) => void;
+  onSelect: (taskId: string) => void;
+  onStart: (taskId: string) => void;
+  onComplete: (taskId: string) => void;
+  onPause: (taskId: string) => void;
+  onArchiveTask: (taskId: string) => void;
+  onCyclePriority: (taskId: string, current: PriorityLevel) => void;
+  onRemoveDependency: (taskId: string, dependsOnId: string) => void;
+  onPortPointerDown: (taskId: string, e: React.PointerEvent) => void;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: `column-${branch.id}`,
+    data: { type: "column", branchId: branch.id },
+  });
 
-const edgeTypes = {
-  sequential: SequentialEdge,
-  blocking: BlockingEdge,
-};
+  const allInBranch = graph.actions.filter(
+    (t) => t.branchId === branch.id && t.status !== "inbox",
+  );
+  const done = allInBranch.filter((t) => t.status === "done").length;
+  const progress = allInBranch.length > 0 ? `${done}/${allInBranch.length}` : undefined;
+  const taskIds = tasks.map((t) => t.id);
 
-const LOCKED_VIEWPORT = { x: 0, y: 0, zoom: 1 };
+  return (
+    <div ref={setNodeRef} className="kanban-column" style={{ width: KANBAN_COLUMN_WIDTH }}>
+      <OutcomeColumnHeader
+        label={branch.name}
+        branchId={branch.id}
+        progress={progress}
+        taskCount={allInBranch.length}
+        canMoveLeft={columnIndex > 0}
+        canMoveRight={columnIndex < columnCount - 1}
+        onMoveLeft={() => onMoveColumn(branch.id, "left")}
+        onMoveRight={() => onMoveColumn(branch.id, "right")}
+        onRename={onRename}
+        onArchive={onArchive}
+        onDelete={onDelete}
+      />
+      <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+        <div className="kanban-column__cards">
+          {tasks.map((task) => {
+            const depCount = graph.dependencies.filter(
+              (d) => d.taskId === task.id || d.dependsOnTaskId === task.id,
+            ).length;
+            const upstreamDeps = graph.dependencies
+              .filter((d) => d.taskId === task.id)
+              .map((d) => {
+                const dep = graph.actions.find((t) => t.id === d.dependsOnTaskId);
+                return dep ? { id: dep.id, title: dep.title } : null;
+              })
+              .filter((d): d is { id: string; title: string } => d !== null);
 
-export function KanbanBoard() {
+            return (
+              <ActionCard
+                key={task.id}
+                task={task}
+                branchId={branch.id}
+                isRecommended={task.id === topRecommendationId}
+                dependencyCount={depCount}
+                upstreamDeps={upstreamDeps}
+                connecting={connecting}
+                highlightIn={highlightTarget === task.id}
+                onSelect={onSelect}
+                onStart={onStart}
+                onComplete={onComplete}
+                onPause={onPause}
+                onArchive={onArchiveTask}
+                onCyclePriority={onCyclePriority}
+                onRemoveDependency={onRemoveDependency}
+                onPortPointerDown={onPortPointerDown}
+              />
+            );
+          })}
+        </div>
+      </SortableContext>
+      <AddActionCard onAdd={(title) => onAddTask(branch.id, title)} />
+    </div>
+  );
+}
+
+export function KanbanBoard({
+  onConnectingChange,
+}: {
+  onConnectingChange?: (connecting: boolean) => void;
+}) {
   const graph = useAppStore((s) => s.graph);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const topRecommendationId = useAppStore((s) => s.topRecommendationId);
@@ -46,29 +160,74 @@ export function KanbanBoard() {
   const archiveBranch = useAppStore((s) => s.archiveBranch);
   const deleteBranch = useAppStore((s) => s.deleteBranch);
   const reorderBranches = useAppStore((s) => s.reorderBranches);
+  const reorderBranchTasks = useAppStore((s) => s.reorderBranchTasks);
   const archiveTask = useAppStore((s) => s.archiveTask);
   const setTaskPriority = useAppStore((s) => s.setTaskPriority);
+
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [addingBranch, setAddingBranch] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const sortedBranches = useMemo(
     () => (graph ? [...graph.outcomes].sort((a, b) => a.sortOrder - b.sortOrder) : []),
     [graph?.outcomes],
   );
 
-  const layout = useMemo(() => {
-    if (!graph) {
-      return {
-        nodes: [],
-        edges: [],
-        metrics: { totalWidth: COLUMN_WIDTH, totalHeight: 400, columnCount: 0 },
-      };
+  const tasksByBranch = useMemo(() => {
+    if (!graph) return new Map<string, Action[]>();
+    const map = new Map<string, Action[]>();
+    for (const branch of sortedBranches) {
+      const branchTasks = graph.actions.filter(
+        (t) =>
+          t.branchId === branch.id &&
+          t.status !== "inbox" &&
+          (!hideDoneTasks || t.status !== "done"),
+      );
+      map.set(branch.id, orderTasksInColumn(branchTasks, graph.dependencies));
     }
-    return buildKanbanLayout(graph.outcomes, graph.actions, graph.dependencies, hideDoneTasks);
-  }, [graph, hideDoneTasks]);
+    return map;
+  }, [graph, sortedBranches, hideDoneTasks]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges);
-  const [addingBranch, setAddingBranch] = useState(false);
-  const [newBranchName, setNewBranchName] = useState("");
+  const visibleTaskIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const tasks of tasksByBranch.values()) {
+      for (const t of tasks) ids.add(t.id);
+    }
+    return ids;
+  }, [tasksByBranch]);
+
+  const existingPairs = useMemo(() => {
+    const pairs = new Set<string>();
+    if (!graph) return pairs;
+    for (const dep of graph.dependencies) {
+      pairs.add(`${dep.taskId}:${dep.dependsOnTaskId}`);
+    }
+    return pairs;
+  }, [graph?.dependencies]);
+
+  const handleConnect = useCallback(
+    (targetId: string, sourceId: string) => {
+      void api.addDependency(targetId, sourceId).then(() => refreshAll());
+    },
+    [refreshAll],
+  );
+
+  const { edges, previewPath, highlightTarget, connecting, startDrag, remeasure } =
+    useBlockConnections({
+      boardRef,
+      dependencies: graph?.dependencies ?? [],
+      visibleTaskIds,
+      existingPairs,
+      onConnect: handleConnect,
+      onConnectingChange,
+    });
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => remeasure());
+    return () => cancelAnimationFrame(id);
+  }, [tasksByBranch, sortedBranches, remeasure]);
 
   const moveColumn = useCallback(
     (branchId: string, direction: "left" | "right") => {
@@ -83,123 +242,44 @@ export function KanbanBoard() {
     [graph, sortedBranches, reorderBranches],
   );
 
-  useEffect(() => {
-    if (!graph) return;
+  const onDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      if (!graph || connecting) return;
+      const { active, over } = event;
+      if (!over) return;
 
-    const branchTaskCounts = new Map(
-      graph.outcomes.map((b) => [
-        b.id,
-        graph.actions.filter((t) => t.branchId === b.id && t.status !== "inbox").length,
-      ]),
-    );
+      const activeData = active.data.current as { branchId?: string; taskId?: string } | undefined;
+      const sourceBranchId = activeData?.branchId;
+      const activeId = String(active.id);
+      if (!sourceBranchId) return;
 
-    const columnIndexByBranch = new Map(sortedBranches.map((b, i) => [b.id, i]));
+      const overData = over.data.current as { branchId?: string; taskId?: string } | undefined;
+      let targetBranchId = overData?.branchId;
+      if (!targetBranchId && String(over.id).startsWith("column-")) {
+        targetBranchId = String(over.id).slice("column-".length);
+      }
+      if (!targetBranchId) return;
 
-    setNodes(
-      layout.nodes.map((node) => {
-        if (node.type === "action") {
-          const data = node.data as ActionNodeData;
-          const depCount = graph.dependencies.filter(
-            (d) => d.taskId === data.task.id || d.dependsOnTaskId === data.task.id,
-          ).length;
-          return {
-            ...node,
-            draggable: false,
-            data: {
-              ...data,
-              dependencyCount: depCount,
-              isRecommended: data.task.id === topRecommendationId,
-              onSelect: (taskId: string) => selectTask(taskId),
-              onStart: (taskId: string) => {
-                if (!activeProjectId) return;
-                void activateTask(taskId, activeProjectId);
-              },
-              onComplete: (taskId: string) => {
-                if (!activeProjectId) return;
-                void completeTask(taskId, activeProjectId);
-              },
-              onPause: (taskId: string) => {
-                if (!activeProjectId) return;
-                void pauseTask(taskId, activeProjectId);
-              },
-              onArchive: (taskId: string) => {
-                void archiveTask(taskId, activeProjectId ?? undefined);
-              },
-              onCyclePriority: (taskId: string, current: PriorityLevel) => {
-                void setTaskPriority(taskId, nextPriority(current));
-              },
-              dependencyOptions: graph.actions.filter(
-                (t) => t.id !== data.task.id && t.status !== "inbox",
-              ),
-              onAddDependency: (taskId: string, dependsOnId: string) => {
-                void api.addDependency(taskId, dependsOnId).then(() => refreshAll());
-              },
-            },
-          };
-        }
-        if (node.type === "outcomeHeader") {
-          const branchId = (node.data as { branchId: string }).branchId;
-          const colIdx = columnIndexByBranch.get(branchId) ?? 0;
-          return {
-            ...node,
-            draggable: false,
-            data: {
-              ...node.data,
-              taskCount: branchTaskCounts.get(branchId) ?? 0,
-              canMoveLeft: colIdx > 0,
-              canMoveRight: colIdx < sortedBranches.length - 1,
-              onMoveLeft: () => moveColumn(branchId, "left"),
-              onMoveRight: () => moveColumn(branchId, "right"),
-              onRename: (id: string, name: string) => void renameBranch(id, name),
-              onArchive: (id: string) => void archiveBranch(id),
-              onDelete: (id: string) => void deleteBranch(id),
-            },
-          };
-        }
-        if (node.type === "addTask") {
-          const branchId = (node.data as { branchId: string }).branchId;
-          return {
-            ...node,
-            draggable: false,
-            data: {
-              branchId,
-              onAdd: (title: string) => void addBranchTask(branchId, title),
-            },
-          };
-        }
-        return { ...node, draggable: false };
-      }),
-    );
-    setEdges(layout.edges);
-  }, [
-    layout,
-    graph,
-    sortedBranches,
-    setNodes,
-    setEdges,
-    activeProjectId,
-    topRecommendationId,
-    moveColumn,
-    selectTask,
-    completeTask,
-    activateTask,
-    pauseTask,
-    addBranchTask,
-    renameBranch,
-    archiveBranch,
-    deleteBranch,
-    archiveTask,
-    setTaskPriority,
-  ]);
+      if (sourceBranchId !== targetBranchId) {
+        void api.assignTaskToBranch(activeId, targetBranchId).then(async () => {
+          await refreshAll();
+          const targetTasks = tasksByBranch.get(targetBranchId!) ?? [];
+          const nextIds = [...targetTasks.map((t) => t.id), activeId];
+          await reorderBranchTasks(targetBranchId!, nextIds);
+        });
+        return;
+      }
 
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      if (!connection.source || !connection.target || !activeProjectId) return;
-      void api
-        .addDependency(connection.target, connection.source)
-        .then(() => refreshAll());
+      const tasks = tasksByBranch.get(targetBranchId) ?? [];
+      const ids = tasks.map((t) => t.id);
+      const oldIndex = ids.indexOf(activeId);
+      const overId = overData?.taskId ?? String(over.id);
+      const newIndex = ids.indexOf(overId);
+      if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
+        void reorderBranchTasks(targetBranchId, arrayMove(ids, oldIndex, newIndex));
+      }
     },
-    [activeProjectId, refreshAll],
+    [graph, connecting, tasksByBranch, refreshAll, reorderBranchTasks],
   );
 
   if (!graph) {
@@ -242,48 +322,48 @@ export function KanbanBoard() {
     );
   }
 
-  const { totalWidth, totalHeight } = layout.metrics;
-
   return (
-    <div
-      className="kanban-board"
-      style={{ width: totalWidth, height: totalHeight }}
-    >
-      {sortedBranches.map((branch, columnIndex) => (
-        <div
-          key={branch.id}
-          className="kanban-board__column-bg"
-          style={{
-            left: columnIndex * COLUMN_WIDTH,
-            width: COLUMN_WIDTH,
-            height: totalHeight,
-          }}
-        />
-      ))}
-      <ReactFlow
-        width={totalWidth}
-        height={totalHeight}
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        defaultViewport={LOCKED_VIEWPORT}
-        minZoom={1}
-        maxZoom={1}
-        panOnDrag={false}
-        panOnScroll={false}
-        zoomOnScroll={false}
-        zoomOnPinch={false}
-        zoomOnDoubleClick={false}
-        nodesDraggable={false}
-        nodesConnectable
-        proOptions={{ hideAttribution: true }}
-      >
-        <BlockingEdgeMarker />
-      </ReactFlow>
-    </div>
+    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <div ref={boardRef} className="kanban-board">
+        {sortedBranches.map((branch, columnIndex) => (
+          <KanbanColumn
+            key={branch.id}
+            branch={branch}
+            tasks={tasksByBranch.get(branch.id) ?? []}
+            columnIndex={columnIndex}
+            columnCount={sortedBranches.length}
+            graph={graph}
+            topRecommendationId={topRecommendationId}
+            connecting={connecting}
+            highlightTarget={highlightTarget}
+            onMoveColumn={moveColumn}
+            onRename={(id, name) => void renameBranch(id, name)}
+            onArchive={(id) => void archiveBranch(id)}
+            onDelete={(id) => void deleteBranch(id)}
+            onAddTask={(id, title) => void addBranchTask(id, title)}
+            onSelect={(taskId) => selectTask(taskId)}
+            onStart={(taskId) => {
+              if (!activeProjectId) return;
+              void activateTask(taskId, activeProjectId);
+            }}
+            onComplete={(taskId) => {
+              if (!activeProjectId) return;
+              void completeTask(taskId, activeProjectId);
+            }}
+            onPause={(taskId) => {
+              if (!activeProjectId) return;
+              void pauseTask(taskId, activeProjectId);
+            }}
+            onArchiveTask={(taskId) => void archiveTask(taskId, activeProjectId ?? undefined)}
+            onCyclePriority={(taskId, current) => void setTaskPriority(taskId, nextPriority(current))}
+            onRemoveDependency={(taskId, dependsOnId) => {
+              void api.removeDependency(taskId, dependsOnId).then(() => refreshAll());
+            }}
+            onPortPointerDown={startDrag}
+          />
+        ))}
+        <KanbanEdges edges={edges} previewPath={previewPath} />
+      </div>
+    </DndContext>
   );
 }

@@ -222,6 +222,13 @@
   color: var(--text-secondary);
 }
 
+.detail-panel__dep-hint {
+  margin: 0 0 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
 .detail-panel__dep-empty {
   margin: 0;
   color: var(--text-tertiary);

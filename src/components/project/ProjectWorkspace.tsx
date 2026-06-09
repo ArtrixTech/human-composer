@@ -12,6 +12,7 @@ export function ProjectWorkspace() {
 
   const [addingBranch, setAddingBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+  const [connecting, setConnecting] = useState(false);
 
   if (!graph || !activeProjectId) return null;
 
@@ -62,8 +63,10 @@ export function ProjectWorkspace() {
         )}
       </div>
 
-      <div className="project-workspace__board-scroll">
-        <KanbanBoard />
+      <div
+        className={`kanban-canvas-host${connecting ? " kanban-canvas-host--connecting" : ""}`}
+      >
+        <KanbanBoard onConnectingChange={setConnecting} />
       </div>
 
       <ProjectFooterBar projectId={activeProjectId} />

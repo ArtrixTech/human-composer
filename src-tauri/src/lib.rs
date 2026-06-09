@@ -148,6 +148,7 @@ pub fn run() {
             commands::focus_floating_for_quick_add,
             commands::list_projects,
             commands::create_project,
+            commands::update_project,
             commands::set_active_project,
             commands::get_project_graph,
             commands::get_app_snapshot,

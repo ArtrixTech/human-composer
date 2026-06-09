@@ -44,6 +44,10 @@ interface AppStore {
   selectProjectView: (projectId: string) => Promise<void>;
   selectProject: (projectId: string) => Promise<void>;
   createProject: (name: string) => Promise<void>;
+  updateProject: (
+    projectId: string,
+    fields: { priority?: import("../types").PriorityLevel; color?: string; icon?: string },
+  ) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
   refreshAll: () => Promise<void>;
   refreshRunway: () => Promise<void>;
@@ -214,6 +218,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
       topRecommendationId: snapshot.recommendations[0]?.action.id ?? null,
       currentView: "project",
     });
+  },
+
+  updateProject: async (projectId, fields) => {
+    await api.updateProject(projectId, fields);
+    const projects = await api.listProjects();
+    set({ projects });
+    if (get().activeProjectId === projectId && get().graph) {
+      const graph = await api.getProjectGraph(projectId);
+      set({ graph });
+    }
   },
 
   deleteProject: async (projectId) => {

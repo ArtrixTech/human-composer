@@ -89,15 +89,17 @@ export function TaskBlock({
         <div className="task-card__content">
           <div className="task-card__row-top">
             <TaskCardStatus kind={kind} />
+            <span className="task-card__title">{ctx.action.title}</span>
+          </div>
+          <div className="task-card__meta">
             {ctx.action.priority && (
               <span className={`task-card__priority task-card__priority--${ctx.action.priority.toLowerCase()}`}>
                 {ctx.action.priority}
               </span>
             )}
-            <span className="task-card__title">{ctx.action.title}</span>
             <span className="task-card__time">{formatEstimate(ctx.action.estimatedMinutes, isPending)}</span>
+            {metaLine ? <span className="task-card__meta-detail">{metaLine}</span> : null}
           </div>
-          {metaLine ? <div className="task-card__meta">{metaLine}</div> : null}
 
           <div className="task-card__actions">
             {isActive && !isWatch && (

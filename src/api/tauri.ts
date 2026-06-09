@@ -12,6 +12,8 @@ import type {
   LlmConfig,
   OutcomeSuggestion,
   LaneTier,
+  PriorityLevel,
+  Project,
   ProjectGraph,
   ProjectSummary,
   TodaySnapshot,
@@ -31,6 +33,18 @@ export function listProjects(): Promise<ProjectSummary[]> {
 
 export function createProject(name: string): Promise<string> {
   return invoke("create_project", { name });
+}
+
+export function updateProject(
+  projectId: string,
+  fields: { priority?: PriorityLevel; color?: string; icon?: string },
+): Promise<Project> {
+  return invoke("update_project", {
+    projectId,
+    priority: fields.priority ?? null,
+    color: fields.color ?? null,
+    icon: fields.icon ?? null,
+  });
 }
 
 export function deleteProject(projectId: string): Promise<void> {

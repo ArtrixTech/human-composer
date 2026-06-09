@@ -1,45 +1,56 @@
 .kanban-board {
   position: relative;
-  flex-shrink: 0;
+  display: flex;
+  gap: var(--kanban-column-gap);
+  align-items: flex-start;
+  min-width: 100%;
+  min-height: 100%;
+  width: max-content;
+  height: max-content;
+  padding: 12px 0 24px;
   background: var(--bg-base);
 }
 
-.kanban-board__column-bg {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  border-right: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: linear-gradient(180deg, var(--bg-surface) 0%, rgba(17, 17, 19, 0.6) 100%);
-  pointer-events: none;
-  z-index: 0;
+.kanban-column {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kanban-card-gap);
+  padding: var(--kanban-column-top) var(--kanban-column-gutter) 0;
+  min-height: calc(100% - 16px);
+  background: transparent;
 }
 
-.kanban-board .react-flow {
+.kanban-column__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kanban-card-gap);
+  flex: 1;
+  min-height: 0;
+}
+
+.kanban-edges {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  background: transparent;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 2;
 }
 
-.kanban-board .react-flow__renderer,
-.kanban-board .react-flow__pane,
-.kanban-board .react-flow__viewport,
-.kanban-board .react-flow__nodes {
-  overflow: visible !important;
+.kanban-edges__path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1.25;
+  stroke-dasharray: 5 4;
+  opacity: 0.65;
 }
 
-.kanban-board .react-flow__node {
-  overflow: visible !important;
-  background: transparent;
-}
-
-.kanban-board .react-flow__pane {
-  cursor: default;
-}
-
-.kanban-board .react-flow__viewport {
-  transform-origin: 0 0 !important;
+.kanban-edges__path--preview {
+  stroke: rgba(255, 255, 255, 0.32);
+  opacity: 0.45;
+  stroke-dasharray: 4 4;
 }
 
 .kanban-empty {
@@ -52,6 +63,7 @@
   color: var(--text-tertiary);
   padding: var(--page-padding-y) var(--page-padding-x);
   min-height: 0;
+  width: 100%;
 }
 
 .kanban-empty h3 {

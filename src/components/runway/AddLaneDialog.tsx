@@ -1,3 +1,4 @@
+import { Clock, Target } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { DayLaneType, LaneTier } from "../../types";
@@ -53,7 +54,7 @@ export function AddLaneDialog({ onClose }: { onClose: () => void }) {
               checked={laneType === "focus"}
               onChange={() => setLaneType("focus")}
             />
-            🎯 专注
+            <Target size={12} /> 专注
           </label>
           <label>
             <input
@@ -61,7 +62,7 @@ export function AddLaneDialog({ onClose }: { onClose: () => void }) {
               checked={laneType === "watch"}
               onChange={() => setLaneType("watch")}
             />
-            ⏳ 等待
+            <Clock size={12} /> 等待
           </label>
         </div>
         {laneType === "focus" && (

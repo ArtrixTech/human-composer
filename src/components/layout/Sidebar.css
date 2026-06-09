@@ -76,31 +76,81 @@
   background: var(--accent-muted);
 }
 
-.sidebar__item--active .sidebar__item-dot {
-  background: var(--accent);
+.sidebar__project-wrap {
+  position: relative;
+  margin-bottom: 2px;
 }
 
-.sidebar__item-dot {
+.sidebar__project {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sidebar__project-dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  background: var(--text-tertiary);
+  margin-top: 9px;
+  border-radius: 999px;
   flex-shrink: 0;
 }
 
-.sidebar--collapsed .sidebar__item-dot {
-  margin: 0;
+.sidebar__project-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
-.sidebar:not(.sidebar--collapsed) .sidebar__item {
-  position: relative;
-  padding-left: 22px;
+.sidebar__project-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
-.sidebar:not(.sidebar--collapsed) .sidebar__item-dot {
-  position: absolute;
-  left: 10px;
-  top: 14px;
+.sidebar--collapsed .sidebar__project {
+  justify-content: center;
+  padding: 10px !important;
+}
+
+.sidebar--collapsed .sidebar__project-dot {
+  display: none;
+}
+
+.sidebar__project-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.sidebar__priority-badge {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.sidebar__priority-badge.project-priority--h {
+  background: var(--priority-high-bg);
+  color: var(--priority-high);
+}
+
+.sidebar__priority-badge.project-priority--m {
+  background: var(--priority-medium-bg);
+  color: var(--priority-medium);
+}
+
+.sidebar__priority-badge.project-priority--l {
+  background: var(--priority-low-bg);
+  color: var(--priority-low);
 }
 
 .sidebar__item-name {
@@ -178,21 +228,6 @@
   height: 1px;
   margin: 6px 10px;
   background: var(--border-subtle);
-}
-
-.sidebar__delete {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-  padding: 2px 6px;
-  font-size: 10px;
-  color: #f87171;
-  border-radius: var(--radius-sm);
-}
-
-.sidebar__delete:hover {
-  background: rgba(248, 113, 113, 0.15);
 }
 
 .sidebar__ai-settings {

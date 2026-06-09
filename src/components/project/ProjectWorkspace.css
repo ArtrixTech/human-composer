@@ -6,13 +6,16 @@
   overflow: hidden;
 }
 
-.project-workspace__board-scroll {
+.kanban-canvas-host {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  display: flex;
-  flex-direction: column;
-  padding: var(--page-padding-y) var(--page-padding-x) 0;
+  padding: 0 var(--page-padding-x) 8px;
+}
+
+.kanban-canvas-host--connecting {
+  touch-action: none;
+  cursor: crosshair;
 }
 
 .project-workspace__toolbar {

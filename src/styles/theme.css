@@ -66,8 +66,10 @@
   --toolbar-height: 36px;
 
   /* Kanban layout — sync with src/layout/kanbanTokens.ts */
-  --kanban-column-width: 196px;
-  --kanban-column-gutter: 8px;
+  --kanban-column-width: 204px;
+  --kanban-column-gutter: 12px;
+  --kanban-column-gap: 16px;
+  --kanban-column-top: 20px;
   --kanban-card-width: 180px;
   --kanban-card-height: 76px;
   --kanban-card-gap: 16px;

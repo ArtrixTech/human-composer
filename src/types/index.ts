@@ -20,6 +20,8 @@ export interface Project {
   sourceType: string;
   sourceRef: string | null;
   priority: PriorityLevel;
+  color: string;
+  icon: string;
   createdAt: string;
 }
 
@@ -74,6 +76,9 @@ export interface ProjectGraph {
 export interface ProjectSummary {
   id: string;
   name: string;
+  priority: PriorityLevel;
+  color: string;
+  icon: string;
   activeCount: number;
   readyCount: number;
   doneCount: number;
