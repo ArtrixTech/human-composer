@@ -1,4 +1,4 @@
-use crate::models::{Branch, BranchSuggestion};
+use crate::models::{Outcome, OutcomeSuggestion};
 
 const KEYWORD_MAP: &[(&str, &[&str])] = &[
     ("前端", &["ui", "前端", "react", "页面", "组件", "css", "tsx", "界面", "dashboard", "登录"]),
@@ -7,11 +7,11 @@ const KEYWORD_MAP: &[(&str, &[&str])] = &[
     ("设计", &["设计", "design", "figma", "uiux", "视觉"]),
 ];
 
-pub fn suggest_branch(title: &str, branches: &[Branch]) -> Option<BranchSuggestion> {
+pub fn suggest_outcome(title: &str, outcomes: &[Outcome]) -> Option<OutcomeSuggestion> {
     let lower = title.to_lowercase();
     let mut best: Option<(String, String, f64)> = None;
 
-    for branch in branches {
+    for branch in outcomes {
         if branch.archived {
             continue;
         }
@@ -39,7 +39,7 @@ pub fn suggest_branch(title: &str, branches: &[Branch]) -> Option<BranchSuggesti
         }
     }
 
-    best.map(|(branch_id, branch_name, score)| BranchSuggestion {
+    best.map(|(branch_id, branch_name, score)| OutcomeSuggestion {
         branch_id,
         branch_name,
         confidence: (score / 10.0_f64).min(1.0_f64),

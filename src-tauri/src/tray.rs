@@ -234,7 +234,7 @@ fn build_tray_menu(app: &AppHandle, snapshot: &DayRunwaySnapshot) -> Result<(), 
 
     if !has_active {
         owned_items.push(
-            MenuItem::with_id(app, "idle", "暂无进行中的任务", false, None::<&str>)
+            MenuItem::with_id(app, "idle", "暂无进行中的行动", false, None::<&str>)
                 .map_err(|e| e.to_string())?,
         );
         structure.push(MenuEntry::Item(owned_items.len() - 1));
@@ -269,7 +269,7 @@ fn build_tray_menu(app: &AppHandle, snapshot: &DayRunwaySnapshot) -> Result<(), 
     }
 
     owned_items.push(
-        MenuItem::with_id(app, "quick-add", "快速添加任务…", true, None::<&str>)
+        MenuItem::with_id(app, "quick-add", "快速添加行动…", true, None::<&str>)
             .map_err(|e| e.to_string())?,
     );
     structure.push(MenuEntry::Item(owned_items.len() - 1));

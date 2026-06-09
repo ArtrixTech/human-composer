@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::auto_assign::suggest_branch;
+use crate::auto_assign::suggest_outcome;
 use crate::db::Database;
 use crate::models::{
     AppSnapshot, Branch, BranchSuggestion, CompleteTaskResult, CreateTaskResult, DayLane,
@@ -528,7 +528,7 @@ pub fn create_task(
 
         let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
         let branch_suggestion = if branch_id.is_none() {
-            suggest_branch(&title, &graph.branches)
+            suggest_outcome(&title, &graph.branches)
         } else {
             None
         };
@@ -839,7 +839,7 @@ pub fn suggest_branch_for_task(
 ) -> Result<Option<BranchSuggestion>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
-    Ok(suggest_branch(&title, &graph.branches))
+    Ok(suggest_outcome(&title, &graph.branches))
 }
 
 #[tauri::command]
