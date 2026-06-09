@@ -161,3 +161,59 @@
 - 折叠/展开态拖动区域双击调用 `showMainWindow`，并 emit `main-show-today` 切换主窗口至今日安排视图
 
 **Commit:** `55875e1`
+
+## 2026-06-06 — 悬浮窗系统性优化
+
+- **折叠态多泳道**：N 条泳道 = N 行紧凑泳道栈，窗口高度随行数精确增长（36px/行），无内部留白
+- **完成后保持折叠**：删除完成后强制展开；各行就地完成/领取下一项
+- **Per-lane 可领取**：`findLaneClaimableOptions` 按全局推荐顺序展示多任务胶囊，点击即领取
+- **组件拆分**：`FloatingLaneRow` + `floatingSize` 统一折叠/展开泳道行与动态窗口尺寸
+- **Tauri 同步**：`toggle_floating_expanded` 改为 emit `floating-toggle-expand`；初始窗口 300×36
+
+**Commit:** `f376dee`
+
+## 2026-06-06 — 悬浮窗圆角裁切与独立通知胶囊
+
+- **圆角裁切**：圆角/背景/边框移至 `.floating-shell`，`overflow: hidden` 裁切透明窗口尖角
+- **动态尺寸**：`useLayoutEffect` 测量 `shellRef.scrollHeight` 同步窗口高度，展开态 footer 不再被裁切
+- **独立通知**：临时反馈改为悬浮窗正下方 `floating-notice` 圆角胶囊，2s 自动收起，主面板高度不变
+- **泳道排序**：折叠/展开态 `sortLanesForDisplay`，watch 泳道置底；外部任务行黄色虚线样式
+
+**Commit:** `b7cc00b`
+
+## 2026-06-09 — 支线归档删除修复 + 概念重命名计划 (prev: `b7cc00b`)
+
+- **支线操作修复**：移除 `window.confirm`（Tauri WebView 无效），归档/删除点击即执行；归档 Toast 支持 Undo（`unarchiveBranch`）
+- **重命名计划**：新增 `.cursor/plans/支线任务概念重命名_2e0b640e.plan.md`，决策 **A+α**（UI「目标-行动」、代码 `Outcome`/`Action`，DB/IPC 保持 branch/task 别名）
+
+**Commit:** `c0a127b`
+
+## 2026-06-09 — 目标/行动概念重命名 Outcome/Action (prev: `1b97fec`)
+
+- **文档**：`AGENTS.md` 新增 Glossary；产品设计 plan 修正 Outcome≠泳道
+- **TS**：`Outcome`/`Action` 主类型 + wire 解析器；API/Store 新函数名，JSON 仍 `branches`/`tasks`
+- **Rust**：`Outcome`/`Action` type alias；`recommend`/`auto_assign` 内部改名
+- **UI**：全局「目标-行动」文案；`OutcomeColumnHeader`/`ActionNode` 组件重命名；DetailPanel inline 重命名目标
+
+**Commit:** `418ca06`
+
+## 2026-06-09 — 泳道自动配色（可开关）(prev: `418ca06`)
+
+- **专注泳道**：按排序自动分配 8 色色相（左边框 + 名称色点）；等待泳道仍用黄色虚线
+- **可选**：今日安排标题栏调色板按钮切换；偏好存 `localStorage`（`hc-lane-colors-enabled`，默认开启）
+- **同步**：主窗口 `LaneRow` 与悬浮窗 `FloatingLaneRow` 共用同一套索引与开关
+
+**Commit:** `4eead85`
+
+## 2026-06-09 — 悬浮窗透明圆角修复 (prev: `253af53`)
+
+- 关闭 floating 窗口原生 shadow / ContentBackground，改由 CSS `floating-shell` 负责圆角与阴影
+- `floating.html` / `floating-window.css`：根节点填满 webview，避免透明窗矩形边框
+
+**Commit:** `5a9efd7`
+
+## 2026-06-09 — 概念重命名计划全部完成 (prev: `3ab8c64`)
+
+- 更新 `.cursor/plans/支线任务概念重命名_2e0b640e.plan.md`：Phase 0–5 todos 标记为 completed
+
+**Commit:** `111ceea`

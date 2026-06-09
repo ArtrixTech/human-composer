@@ -9,7 +9,7 @@ export function TaskBlockPreview({
   ctx: TodayTaskContext;
   isPending?: boolean;
 }) {
-  const meta = [ctx.projectName, ctx.branchName].filter(Boolean).join(" · ");
+  const meta = [ctx.projectName, ctx.outcomeName].filter(Boolean).join(" · ");
   const kind = isPending ? "pending" : "queued";
 
   return (
@@ -20,8 +20,8 @@ export function TaskBlockPreview({
       <div className="task-card__content">
         <div className="task-card__row-top">
           <TaskCardStatus kind={kind} />
-          <span className="task-card__title">{ctx.task.title}</span>
-          <span className="task-card__time">{formatEstimate(ctx.task.estimatedMinutes, isPending)}</span>
+          <span className="task-card__title">{ctx.action.title}</span>
+          <span className="task-card__time">{formatEstimate(ctx.action.estimatedMinutes, isPending)}</span>
         </div>
         {meta ? <div className="task-card__meta">{meta}</div> : null}
       </div>

@@ -14,11 +14,11 @@ export function CompletedBar({
   return (
     <ul className="completed-bar__list completed-bar__list--inline">
       {completed.map((item) => (
-        <li key={item.task.id}>
-          <span className="completed-bar__title">{item.task.title}</span>
+        <li key={item.action.id}>
+          <span className="completed-bar__title">{item.action.title}</span>
           <span className="completed-bar__meta">
             {item.projectName}
-            {item.branchName ? ` · ${item.branchName}` : ""}
+            {item.outcomeName ? ` · ${item.outcomeName}` : ""}
           </span>
         </li>
       ))}

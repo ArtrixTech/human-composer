@@ -5,23 +5,76 @@ import { buildBlockerMap, hasDependencyEdge } from "./dependencyUtils";
 import { DependencyConnector } from "./DependencyConnector";
 import { ExternalTaskBlock } from "./ExternalTaskBlock";
 import { TaskBlock } from "./TaskBlock";
-import { isExternalActive, findFirstClaimableIndex } from "./runwayTaskUtils";
+import { findFirstClaimableIndex } from "./runwayTaskUtils";
+
+function renderExternalItems(
+  tasks: TodayTaskContext[],
+  laneId: string,
+  dependencies: TaskDependency[],
+) {
+  return tasks.map((ctx, idx) => {
+    const prevTask = idx > 0 ? tasks[idx - 1] : null;
+    const showConnector =
+      prevTask != null && hasDependencyEdge(dependencies, prevTask.action.id, ctx.action.id);
+
+    return (
+      <div key={ctx.action.id} className="lane-track__item" role="listitem">
+        {idx > 0 && <DependencyConnector visible={showConnector} />}
+        <ExternalTaskBlock ctx={ctx} laneId={laneId} />
+      </div>
+    );
+  });
+}
+
+function renderFocusItems(
+  tasks: TodayTaskContext[],
+  laneId: string,
+  isWatch: boolean,
+  dependencies: TaskDependency[],
+  firstReadyIdx: number,
+  blockerMap: Map<string, string[]>,
+) {
+  return tasks.map((ctx, idx) => {
+    const isPending = ctx.action.status === "pending";
+    const prevTask = idx > 0 ? tasks[idx - 1] : null;
+    const showConnector =
+      prevTask != null && hasDependencyEdge(dependencies, prevTask.action.id, ctx.action.id);
+
+    return (
+      <div key={ctx.action.id} className="lane-track__item" role="listitem">
+        {idx > 0 && <DependencyConnector visible={showConnector} />}
+        <TaskBlock
+          ctx={ctx}
+          laneId={laneId}
+          showClaim={idx === firstReadyIdx && ctx.action.status === "ready"}
+          isActive={ctx.action.status === "active"}
+          isPending={isPending}
+          isWatch={isWatch}
+          blockerTitles={blockerMap.get(ctx.action.id) ?? []}
+        />
+      </div>
+    );
+  });
+}
 
 export function LaneTrack({
   laneId,
-  tasks,
+  focusTasks,
+  externalTasks,
   isWatch,
   dependencies = [],
 }: {
   laneId: string;
-  tasks: TodayTaskContext[];
+  focusTasks: TodayTaskContext[];
+  externalTasks: TodayTaskContext[];
   isWatch: boolean;
   dependencies?: TaskDependency[];
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
 
-  const firstReadyIdx = findFirstClaimableIndex(tasks);
-  const tasksById = new Map(tasks.map((t) => [t.task.id, t]));
+  const firstReadyIdx = findFirstClaimableIndex(focusTasks);
+  const allTasks = [...focusTasks, ...externalTasks];
+  const tasksById = new Map(allTasks.map((t) => [t.action.id, t]));
   const blockerMap = buildBlockerMap(dependencies, tasksById);
 
   useEffect(() => {
@@ -49,40 +102,30 @@ export function LaneTrack({
 
     el.addEventListener("keydown", onKeyDown);
     return () => el.removeEventListener("keydown", onKeyDown);
-  }, [tasks.length]);
+  }, [allTasks.length]);
+
+  const isEmpty = focusTasks.length === 0 && externalTasks.length === 0;
 
   return (
-    <div className="lane-track" ref={trackRef} role="list">
-      {tasks.map((ctx, idx) => {
-        const isExternal = isExternalActive(ctx);
-        const isPending = ctx.task.status === "pending";
-        const prevTask = idx > 0 ? tasks[idx - 1] : null;
-        const showConnector =
-          prevTask != null && hasDependencyEdge(dependencies, prevTask.task.id, ctx.task.id);
-
-        const block = isExternal ? (
-          <ExternalTaskBlock key={ctx.task.id} ctx={ctx} laneId={laneId} />
-        ) : (
-          <TaskBlock
-            key={ctx.task.id}
-            ctx={ctx}
-            laneId={laneId}
-            showClaim={idx === firstReadyIdx && ctx.task.status === "ready"}
-            isActive={ctx.task.status === "active"}
-            isPending={isPending}
-            isWatch={isWatch}
-            blockerTitles={blockerMap.get(ctx.task.id) ?? []}
-          />
-        );
-
-        return (
-          <div key={ctx.task.id} className="lane-track__item" role="listitem">
-            {idx > 0 && <DependencyConnector visible={showConnector} />}
-            {block}
-          </div>
-        );
-      })}
-      {tasks.length === 0 && <div className="lane-track__empty">拖拽任务到此处</div>}
+    <div className="lane-track-wrap" ref={trackRef}>
+      {focusTasks.length > 0 && (
+        <div className="lane-track lane-track--focus" role="list">
+          {renderFocusItems(
+            focusTasks,
+            laneId,
+            isWatch,
+            dependencies,
+            firstReadyIdx,
+            blockerMap,
+          )}
+        </div>
+      )}
+      {externalTasks.length > 0 && (
+        <div className="lane-track lane-track--external" role="list" aria-label="外部行动">
+          {renderExternalItems(externalTasks, laneId, dependencies)}
+        </div>
+      )}
+      {isEmpty && <div className="lane-track__empty">拖拽行动到此处</div>}
     </div>
   );
 }

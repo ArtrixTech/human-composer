@@ -21,7 +21,7 @@ export function RecommendPrompt() {
 
   const top = recommendPrompt[0];
   const others = recommendPrompt.slice(1, 4);
-  const projectId = top.projectId ?? top.task.projectId;
+  const projectId = top.projectId ?? top.action.projectId;
 
   return (
     <div className="recommend-prompt recommend-prompt--toast">
@@ -35,13 +35,13 @@ export function RecommendPrompt() {
 
       <div className="recommend-prompt__top">
         <div>
-          <div className="recommend-prompt__title">{top.task.title}</div>
-          {top.branchName && <div className="recommend-prompt__branch">{top.branchName}</div>}
+          <div className="recommend-prompt__title">{top.action.title}</div>
+          {top.outcomeName && <div className="recommend-prompt__branch">{top.outcomeName}</div>}
         </div>
         <button
           type="button"
           className="recommend-prompt__start"
-          onClick={() => void activateTask(top.task.id, projectId)}
+          onClick={() => void activateTask(top.action.id, projectId)}
         >
           开始
         </button>
@@ -51,13 +51,13 @@ export function RecommendPrompt() {
         <div className="recommend-prompt__others">
           {others.map((r) => (
             <button
-              key={r.task.id}
+              key={r.action.id}
               type="button"
               onClick={() =>
-                void activateTask(r.task.id, r.projectId ?? r.task.projectId)
+                void activateTask(r.action.id, r.projectId ?? r.action.projectId)
               }
             >
-              {r.task.title}
+              {r.action.title}
             </button>
           ))}
         </div>

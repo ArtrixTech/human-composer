@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::auto_assign::suggest_branch;
+use crate::auto_assign::suggest_outcome;
 use crate::db::Database;
 use crate::models::{
     AppSnapshot, Branch, BranchSuggestion, CompleteTaskResult, CreateTaskResult, DayLane,
@@ -528,7 +528,7 @@ pub fn create_task(
 
         let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
         let branch_suggestion = if branch_id.is_none() {
-            suggest_branch(&title, &graph.branches)
+            suggest_outcome(&title, &graph.branches)
         } else {
             None
         };
@@ -839,7 +839,7 @@ pub fn suggest_branch_for_task(
 ) -> Result<Option<BranchSuggestion>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
-    Ok(suggest_branch(&title, &graph.branches))
+    Ok(suggest_outcome(&title, &graph.branches))
 }
 
 #[tauri::command]
@@ -890,17 +890,88 @@ pub fn show_main_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn toggle_floating_expanded(app: AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("floating") {
-        let expanded = window
-            .is_visible()
-            .map_err(|e| e.to_string())?
-            && window.inner_size().map_err(|e| e.to_string())?.height > 100;
-        if expanded {
-            let _ = window.set_size(tauri::LogicalSize::new(220.0, 52.0));
-        } else {
-            let _ = window.set_size(tauri::LogicalSize::new(320.0, 400.0));
+pub fn get_floating_notice_message() -> String {
+    notice::pending_message()
+}
+
+mod notice {
+    use std::sync::Mutex;
+
+    static PENDING: Mutex<String> = Mutex::new(String::new());
+
+    pub fn set_pending(message: &str) {
+        if let Ok(mut pending) = PENDING.lock() {
+            *pending = message.to_string();
         }
     }
+
+    pub fn pending_message() -> String {
+        PENDING.lock().map(|s| s.clone()).unwrap_or_default()
+    }
+
+    pub fn clear_pending() {
+        if let Ok(mut pending) = PENDING.lock() {
+            pending.clear();
+        }
+    }
+}
+
+#[tauri::command]
+pub fn show_floating_notice(app: AppHandle, message: String) -> Result<(), String> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Duration;
+
+    static NOTICE_GEN: AtomicU64 = AtomicU64::new(0);
+
+    const NOTICE_GAP: f64 = 4.0;
+    const NOTICE_HEIGHT: f64 = 28.0;
+
+    notice::set_pending(&message);
+
+    let floating = app
+        .get_webview_window("floating")
+        .ok_or("floating window not found")?;
+    let notice = app
+        .get_webview_window("floating-notice")
+        .ok_or("floating-notice window not found")?;
+
+    let scale = floating.scale_factor().map_err(|e| e.to_string())?;
+    let pos = floating.outer_position().map_err(|e| e.to_string())?;
+    let size = floating.outer_size().map_err(|e| e.to_string())?;
+
+    let width = size.width as f64 / scale;
+    let x = pos.x as f64 / scale;
+    let y = pos.y as f64 / scale + size.height as f64 / scale + NOTICE_GAP;
+
+    notice
+        .set_size(tauri::LogicalSize::new(width, NOTICE_HEIGHT))
+        .map_err(|e| e.to_string())?;
+    notice
+        .set_position(tauri::LogicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
+    let _ = notice.set_always_on_top(true);
+    let _ = notice.emit("floating-notice-message", &message);
+    notice.show().map_err(|e| e.to_string())?;
+
+    let generation = NOTICE_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(2000));
+        if NOTICE_GEN.load(Ordering::SeqCst) != generation {
+            return;
+        }
+        notice::clear_pending();
+        if let Some(window) = app_clone.get_webview_window("floating-notice") {
+            let _ = window.emit("floating-notice-message", "");
+            let _ = window.hide();
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn toggle_floating_expanded(app: AppHandle) -> Result<(), String> {
+    let _ = app.emit("floating-toggle-expand", ());
     Ok(())
 }

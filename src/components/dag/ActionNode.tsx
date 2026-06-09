@@ -2,12 +2,12 @@ import { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Archive, Check, FileText, Link2, Pause, Play } from "lucide-react";
 
-import type { Task } from "../../types";
+import type { Action } from "../../types";
 import "./TaskNode.css";
 
-export interface TaskNodeData {
-  task: Task;
-  branchName: string;
+export interface ActionNodeData {
+  task: Action;
+  outcomeName: string;
   isRecommended?: boolean;
   dependencyCount?: number;
   onSelect?: (taskId: string) => void;
@@ -19,8 +19,8 @@ export interface TaskNodeData {
   [key: string]: unknown;
 }
 
-function TaskNodeComponent({ data }: NodeProps) {
-  const nodeData = data as TaskNodeData;
+function ActionNodeComponent({ data }: NodeProps) {
+  const nodeData = data as ActionNodeData;
   const {
     task,
     onStart,
@@ -135,7 +135,10 @@ function TaskNodeComponent({ data }: NodeProps) {
   );
 }
 
-export const TaskNode = memo(TaskNodeComponent);
+export const ActionNode = memo(ActionNodeComponent);
+/** @deprecated Use ActionNode */
+export const TaskNode = ActionNode;
+export type TaskNodeData = ActionNodeData;
 
 export interface AddTaskNodeData {
   branchId: string;
@@ -161,7 +164,7 @@ function AddTaskNodeComponent({ data }: NodeProps) {
       <div className="add-task-node add-task-node--input">
         <input
           autoFocus
-          placeholder="任务名"
+          placeholder="行动名"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
@@ -175,7 +178,7 @@ function AddTaskNodeComponent({ data }: NodeProps) {
 
   return (
     <button type="button" className="add-task-node add-task-node--btn" onClick={() => setOpen(true)}>
-      + 添加任务
+      + 添加行动
     </button>
   );
 }

@@ -30,7 +30,7 @@ export function ProjectWorkspace() {
           <div className="project-workspace__new-branch">
             <input
               autoFocus
-              placeholder="支线名称"
+              placeholder="可衡量的目标，如「登录页可上线」"
               value={newBranchName}
               onChange={(e) => setNewBranchName(e.target.value)}
               onKeyDown={(e) => {
@@ -57,7 +57,7 @@ export function ProjectWorkspace() {
           </div>
         ) : (
           <button type="button" className="project-workspace__toolbar-action" onClick={() => setAddingBranch(true)}>
-            + 新支线
+            + 新目标
           </button>
         )}
       </div>

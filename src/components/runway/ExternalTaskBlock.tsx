@@ -27,24 +27,24 @@ export function ExternalTaskBlock({
 
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    if (ctx.task.externalStatus !== "delegated") return;
+    if (ctx.action.externalStatus !== "delegated") return;
     const id = setInterval(() => setTick((n) => n + 1), 30_000);
     return () => clearInterval(id);
-  }, [ctx.task.externalStatus]);
+  }, [ctx.action.externalStatus]);
   void tick;
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: ctx.task.id,
-    data: { task: ctx, laneId, taskId: ctx.task.id },
+    id: ctx.action.id,
+    data: { task: ctx, laneId, taskId: ctx.action.id },
   });
 
-  const isDelegated = ctx.task.externalStatus === "delegated";
-  const isNeedsReview = ctx.task.externalStatus === "needs_review";
-  const elapsed = elapsedMinutes(ctx.task.externalStartedAt);
-  const est = ctx.task.estimatedMinutes ?? 30;
+  const isDelegated = ctx.action.externalStatus === "delegated";
+  const isNeedsReview = ctx.action.externalStatus === "needs_review";
+  const elapsed = elapsedMinutes(ctx.action.externalStartedAt);
+  const est = ctx.action.estimatedMinutes ?? 30;
   const progress = Math.min(100, (elapsed / est) * 100);
   const kind = isNeedsReview ? "review" : "external";
-  const meta = [ctx.projectName, ctx.branchName].filter(Boolean).join(" · ");
+  const meta = [ctx.projectName, ctx.outcomeName].filter(Boolean).join(" · ");
 
   const metaLine = isDelegated
     ? `运行 ${elapsed}m / ${est}m`
@@ -70,10 +70,10 @@ export function ExternalTaskBlock({
       <div className="task-card__content">
         <div className="task-card__row-top">
           <TaskCardStatus kind={kind} />
-          {ctx.task.priority != null && (
-            <span className="task-card__priority">P{ctx.task.priority}</span>
+          {ctx.action.priority != null && (
+            <span className="task-card__priority">P{ctx.action.priority}</span>
           )}
-          <span className="task-card__title">{ctx.task.title}</span>
+          <span className="task-card__title">{ctx.action.title}</span>
           <span className="task-card__time">{formatEstimate(est)}</span>
         </div>
         <div className="task-card__meta">{metaLine}</div>
@@ -91,7 +91,7 @@ export function ExternalTaskBlock({
               onPointerDown={stopCardDrag}
               onClick={(e) => {
                 e.stopPropagation();
-                void completeExternal(ctx.task.id, ctx.projectId);
+                void completeExternal(ctx.action.id, ctx.projectId);
               }}
               title="标记完成"
             >
@@ -106,7 +106,7 @@ export function ExternalTaskBlock({
                 onPointerDown={stopCardDrag}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void reviewExternal(ctx.task.id, ctx.projectId, "done");
+                  void reviewExternal(ctx.action.id, ctx.projectId, "done");
                 }}
                 title="通过"
               >
@@ -118,7 +118,7 @@ export function ExternalTaskBlock({
                 onPointerDown={stopCardDrag}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void reviewExternal(ctx.task.id, ctx.projectId, "rework");
+                  void reviewExternal(ctx.action.id, ctx.projectId, "rework");
                 }}
                 title="返工"
               >

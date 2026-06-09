@@ -9,19 +9,19 @@ import {
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useMemo, useState } from "react";
 
-import type { Branch, ProjectGraph } from "../../types";
+import type { Outcome, ProjectGraph } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { AddTaskInline } from "./AddTaskInline";
-import { BranchSectionHeader } from "./BranchSectionHeader";
+import { OutcomeSectionHeader } from "./OutcomeSectionHeader";
 import { TaskRow } from "./TaskRow";
 import "./BranchSection.css";
 
-export function BranchSection({
+export function OutcomeSection({
   branch,
   graph,
   hideDone,
 }: {
-  branch: Branch;
+  branch: Outcome;
   graph: ProjectGraph;
   hideDone: boolean;
 }) {
@@ -30,10 +30,10 @@ export function BranchSection({
   const [collapsed, setCollapsed] = useState(false);
 
   const branchTasks = useMemo(() => {
-    return graph.tasks
+    return graph.actions
       .filter((t) => t.branchId === branch.id)
       .filter((t) => !hideDone || t.status !== "done");
-  }, [graph.tasks, branch.id, hideDone]);
+  }, [graph.actions, branch.id, hideDone]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -52,9 +52,9 @@ export function BranchSection({
 
   return (
     <section className="branch-section">
-      <BranchSectionHeader
+      <OutcomeSectionHeader
         branch={branch}
-        tasks={graph.tasks.filter((t) => t.branchId === branch.id)}
+        tasks={graph.actions.filter((t) => t.branchId === branch.id)}
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
       />
@@ -67,7 +67,7 @@ export function BranchSection({
                   <TaskRow
                     key={task.id}
                     task={task}
-                    tasks={graph.tasks}
+                    tasks={graph.actions}
                     dependencies={graph.dependencies}
                     isRecommended={task.id === topRecommendationId}
                   />

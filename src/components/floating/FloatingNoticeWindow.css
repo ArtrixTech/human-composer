@@ -1,0 +1,28 @@
+.floating-notice-window {
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--status-ready);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.16s ease-out, transform 0.16s ease-out;
+}
+
+.floating-notice-window--visible {
+  opacity: 1;
+  transform: translateY(0);
+}

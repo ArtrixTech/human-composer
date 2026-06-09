@@ -12,11 +12,11 @@ export function ProjectHeader() {
 
   if (!graph) return null;
 
-  const activeCount = graph.tasks.filter((t) => t.status === "active").length;
-  const readyCount = graph.tasks.filter((t) => t.status === "ready").length;
-  const inboxCount = graph.tasks.filter((t) => t.status === "inbox").length;
-  const doneCount = graph.tasks.filter((t) => t.status === "done").length;
-  const totalCount = graph.tasks.filter((t) => t.status !== "inbox").length;
+  const activeCount = graph.actions.filter((t) => t.status === "active").length;
+  const readyCount = graph.actions.filter((t) => t.status === "ready").length;
+  const inboxCount = graph.actions.filter((t) => t.status === "inbox").length;
+  const doneCount = graph.actions.filter((t) => t.status === "done").length;
+  const totalCount = graph.actions.filter((t) => t.status !== "inbox").length;
   const topRec = snapshot?.recommendations[0];
   const progress = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
@@ -26,6 +26,9 @@ export function ProjectHeader() {
     <header className="project-header">
       <div className="project-header__row">
         <h1 className="project-header__name">{graph.project.name}</h1>
+        <span className="project-header__scale">
+          {graph.outcomes.length} 个目标 · {totalCount} 项行动
+        </span>
         <div className="project-header__stats">
           {activeCount > 0 && (
             <span className="project-header__stat">
@@ -64,15 +67,15 @@ export function ProjectHeader() {
               <button
                 type="button"
                 className="project-header__rec"
-                title="点击激活推荐任务"
+                title="点击激活推荐行动"
                 onClick={() =>
                   useAppStore
                     .getState()
-                    .activateTask(topRec.task.id, topRec.projectId ?? topRec.task.projectId)
+                    .activateTask(topRec.action.id, topRec.projectId ?? topRec.action.projectId)
                 }
               >
                 <ArrowRight size={12} />
-                <span>{topRec.task.title}</span>
+                <span>{topRec.action.title}</span>
               </button>
             )}
             {loading && <span className="project-header__loading">同步中…</span>}

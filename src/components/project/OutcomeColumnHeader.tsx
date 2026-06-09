@@ -4,9 +4,9 @@ import type { NodeProps } from "@xyflow/react";
 import { MoreVertical } from "lucide-react";
 
 import { useAppStore } from "../../store/appStore";
-import "./BranchColumnHeader.css";
+import "./OutcomeColumnHeader.css";
 
-export interface BranchColumnHeaderData {
+export interface OutcomeColumnHeaderData {
   label: string;
   branchId: string;
   progress?: string;
@@ -23,8 +23,8 @@ export interface BranchColumnHeaderData {
 
 const MENU_WIDTH = 128;
 
-function BranchColumnHeaderComponent({ data }: NodeProps) {
-  const nodeData = data as BranchColumnHeaderData;
+function OutcomeColumnHeaderComponent({ data }: NodeProps) {
+  const nodeData = data as OutcomeColumnHeaderData;
   const {
     label,
     branchId,
@@ -102,11 +102,7 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
       onDelete(branchId, taskCount);
       return;
     }
-    const msg =
-      taskCount > 0
-        ? `删除支线「${label}」及其 ${taskCount} 个任务？此操作不可撤销。`
-        : `删除空支线「${label}」？`;
-    if (window.confirm(msg)) void deleteBranch(branchId);
+    void deleteBranch(branchId);
   };
 
   const menu = menuOpen && menuPos
@@ -145,10 +141,8 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
             type="button"
             onClick={() => {
               setMenuOpen(false);
-              if (window.confirm(`归档支线「${label}」？`)) {
-                if (onArchive) onArchive(branchId);
-                else void archiveBranch(branchId);
-              }
+              if (onArchive) onArchive(branchId);
+              else void archiveBranch(branchId);
             }}
           >
             归档
@@ -190,7 +184,7 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
             ref={menuBtnRef}
             type="button"
             className="branch-column-header__menu-btn"
-            aria-label="支线菜单"
+            aria-label="目标菜单"
             aria-expanded={menuOpen}
             onClick={(e) => {
               e.stopPropagation();
@@ -211,4 +205,7 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
   );
 }
 
-export const BranchColumnHeader = memo(BranchColumnHeaderComponent);
+export const OutcomeColumnHeader = memo(OutcomeColumnHeaderComponent);
+/** @deprecated Use OutcomeColumnHeader */
+export const BranchColumnHeader = OutcomeColumnHeader;
+export type BranchColumnHeaderData = OutcomeColumnHeaderData;

@@ -34,7 +34,7 @@ export function InboxPanel() {
 
   if (!graph) return null;
 
-  const inboxTasks = graph.tasks.filter((t) => t.status === "inbox");
+  const inboxTasks = graph.actions.filter((t) => t.status === "inbox");
 
   const submit = async () => {
     const value = title.trim();
@@ -79,7 +79,7 @@ export function InboxPanel() {
         <div className="inbox-panel__body">
           <div className="inbox-panel__input-row">
             <input
-              placeholder="输入任务名，Enter 创建…"
+              placeholder="输入行动名，Enter 创建…"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onKeyDown={(e) => {
@@ -89,7 +89,7 @@ export function InboxPanel() {
           </div>
           <div className="inbox-panel__list">
             {inboxTasks.length === 0 ? (
-              <p className="inbox-panel__empty">Inbox 为空 — 随时 capture 碎片任务</p>
+              <p className="inbox-panel__empty">Inbox 为空 — 随时 capture 碎片行动</p>
             ) : (
               inboxTasks.map((task) => (
                 <div
@@ -130,8 +130,8 @@ export function InboxPanel() {
           className="inbox-panel__popover"
           style={{ top: popoverPos.top, left: popoverPos.left }}
         >
-          <p className="inbox-panel__popover-label">分配到支线</p>
-          {graph.branches.map((branch) => (
+          <p className="inbox-panel__popover-label">分配到目标</p>
+          {graph.outcomes.map((branch) => (
             <button
               key={branch.id}
               type="button"

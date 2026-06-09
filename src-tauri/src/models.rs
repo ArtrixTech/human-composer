@@ -313,3 +313,16 @@ pub struct DayRunwaySnapshot {
     pub carry_over_count: i32,
     pub focus_lane_count: i32,
 }
+
+// Concept aliases — JSON/DB wire names stay branches/tasks/branchId (see AGENTS.md Glossary).
+pub type Outcome = Branch;
+pub type Action = Task;
+pub type ActionStatus = TaskStatus;
+pub type ActionType = TaskType;
+pub type ActionDependency = TaskDependency;
+pub type ActionWithOutcome = TaskWithBranch;
+pub type RecommendedAction = RecommendedTask;
+pub type OutcomeSuggestion = BranchSuggestion;
+pub type CreateActionResult = CreateTaskResult;
+pub type CompleteActionResult = CompleteTaskResult;
+pub type TodayActionContext = TodayTaskContext;

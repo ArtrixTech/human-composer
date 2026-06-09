@@ -80,12 +80,12 @@ export function buildSwimLaneLayout(
         maxX = Math.max(maxX, x + NODE_WIDTH + 24);
         nodes.push({
           id: task.id,
-          type: "task",
+          type: "action",
           position: {
             x,
             y: laneY + 12 + (pos?.y ?? 0) - NODE_HEIGHT / 2,
           },
-          data: { task, branchName: branch.name },
+          data: { task, outcomeName: branch.name },
         });
       });
     }

@@ -14,8 +14,8 @@ interface ArchivedBranch {
 export function ProjectFooterBar({ projectId }: { projectId: string }) {
   const refreshAll = useAppStore((s) => s.refreshAll);
   const unarchiveTask = useAppStore((s) => s.unarchiveTask);
-  const graphBranchCount = useAppStore((s) => s.graph?.branches.length);
-  const graphTaskCount = useAppStore((s) => s.graph?.tasks.length);
+  const graphBranchCount = useAppStore((s) => s.graph?.outcomes.length);
+  const graphTaskCount = useAppStore((s) => s.graph?.actions.length);
 
   const [open, setOpen] = useState(false);
   const [branches, setBranches] = useState<ArchivedBranch[]>([]);
@@ -67,10 +67,10 @@ export function ProjectFooterBar({ projectId }: { projectId: string }) {
           <section className="project-footer-bar__section">
             <h4 className="project-footer-bar__heading">
               <Archive size={12} />
-              已归档支线
+              已归档目标
             </h4>
             {branches.length === 0 ? (
-              <p className="project-footer-bar__empty">暂无已归档支线</p>
+              <p className="project-footer-bar__empty">暂无已归档目标</p>
             ) : (
               <ul className="project-footer-bar__list">
                 {branches.map((b) => (
@@ -88,10 +88,10 @@ export function ProjectFooterBar({ projectId }: { projectId: string }) {
           <section className="project-footer-bar__section">
             <h4 className="project-footer-bar__heading">
               <Archive size={12} />
-              已归档任务
+              已归档行动
             </h4>
             {tasks.length === 0 ? (
-              <p className="project-footer-bar__empty">暂无已归档任务</p>
+              <p className="project-footer-bar__empty">暂无已归档行动</p>
             ) : (
               <ul className="project-footer-bar__list">
                 {tasks.map((t) => (

@@ -1,4 +1,4 @@
-import { Check, CheckCircle2, ChevronDown, Clock, Play } from "lucide-react";
+import { Check, CheckCircle2, ChevronDown, Clock, Palette, Play } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import type { DayRunwaySnapshot } from "../../types";
@@ -23,6 +23,8 @@ export function RunwayHeader({
   const completeTask = useAppStore((s) => s.completeTask);
   const postponeTask = useAppStore((s) => s.postponeTask);
   const completeExternal = useAppStore((s) => s.completeExternal);
+  const laneColorsEnabled = useAppStore((s) => s.laneColorsEnabled);
+  const toggleLaneColors = useAppStore((s) => s.toggleLaneColors);
   const reviewExternal = useAppStore((s) => s.reviewExternal);
 
   const [showCompleted, setShowCompleted] = useState(false);
@@ -44,7 +46,7 @@ export function RunwayHeader({
   const needsReview = findNeedsReview(snapshot);
   const claimable = findFirstClaimable(snapshot);
   const watchRunning = findWatchTasks(snapshot).filter(
-    (lc) => lc.ctx.task.externalStatus === "delegated",
+    (lc) => lc.ctx.action.externalStatus === "delegated",
   );
 
   let nowVariant = "idle";
@@ -54,12 +56,12 @@ export function RunwayHeader({
   if (needsReview.length > 0) {
     const first = needsReview[0];
     nowVariant = "review";
-    nowTitle = first.ctx.task.title;
+    nowTitle = first.ctx.action.title;
     nowActions = (
       <button
         type="button"
         className="runway-header__cta"
-        onClick={() => void reviewExternal(first.ctx.task.id, first.ctx.projectId, "done")}
+        onClick={() => void reviewExternal(first.ctx.action.id, first.ctx.projectId, "done")}
       >
         <Check size={12} /> 通过
       </button>
@@ -67,14 +69,14 @@ export function RunwayHeader({
   } else if (focusActives.length > 0) {
     const primary = focusActives[0];
     nowVariant = "active";
-    nowTitle = primary.ctx.task.title;
+    nowTitle = primary.ctx.action.title;
     nowActions = (
       <>
         <button
           type="button"
           className="runway-header__cta"
           onClick={() =>
-            void completeTask(primary.ctx.task.id, primary.ctx.projectId, primary.laneId)
+            void completeTask(primary.ctx.action.id, primary.ctx.projectId, primary.laneId)
           }
         >
           <Check size={12} /> 完成
@@ -82,9 +84,9 @@ export function RunwayHeader({
         <button
           type="button"
           className="runway-header__cta runway-header__cta--ghost"
-          title="稍后再做，先做泳道里其他任务"
+          title="稍后再做，先做泳道里其他行动"
           onClick={() =>
-            void postponeTask(primary.ctx.task.id, primary.laneId, primary.ctx.projectId)
+            void postponeTask(primary.ctx.action.id, primary.laneId, primary.ctx.projectId)
           }
         >
           <Clock size={12} /> 稍后
@@ -93,13 +95,13 @@ export function RunwayHeader({
     );
   } else if (claimable) {
     nowVariant = "claimable";
-    nowTitle = claimable.ctx.task.title;
+    nowTitle = claimable.ctx.action.title;
     nowActions = (
       <button
         type="button"
         className="runway-header__cta"
         onClick={() =>
-          void claimTask(claimable.ctx.task.id, claimable.laneId, claimable.ctx.projectId)
+          void claimTask(claimable.ctx.action.id, claimable.laneId, claimable.ctx.projectId)
         }
       >
         <Play size={12} /> 领取
@@ -107,13 +109,13 @@ export function RunwayHeader({
     );
   } else if (watchRunning.length > 0) {
     nowVariant = "watch";
-    nowTitle = watchRunning[0].ctx.task.title;
+    nowTitle = watchRunning[0].ctx.action.title;
     nowActions = (
       <button
         type="button"
         className="runway-header__cta runway-header__cta--muted"
         onClick={() =>
-          void completeExternal(watchRunning[0].ctx.task.id, watchRunning[0].ctx.projectId)
+          void completeExternal(watchRunning[0].ctx.action.id, watchRunning[0].ctx.projectId)
         }
       >
         标记完成
@@ -121,16 +123,16 @@ export function RunwayHeader({
     );
   } else {
     const allPendingCount = snapshot.lanes.reduce(
-      (n, l) => n + l.tasks.filter((t) => t.task.status === "pending").length,
+      (n, l) => n + l.actions.filter((t) => t.action.status === "pending").length,
       0,
     );
     if (allPendingCount > 0) {
       const pendingMinutes = snapshot.lanes.reduce(
         (sum, l) =>
           sum +
-          l.tasks
-            .filter((t) => t.task.status === "pending")
-            .reduce((s, t) => s + (t.task.estimatedMinutes ?? 30), 0),
+          l.actions
+            .filter((t) => t.action.status === "pending")
+            .reduce((s, t) => s + (t.action.estimatedMinutes ?? 30), 0),
         0,
       );
       nowVariant = "pending";
@@ -182,6 +184,15 @@ export function RunwayHeader({
               />
             </button>
           )}
+          <button
+            type="button"
+            className={`runway-header__lane-colors${laneColorsEnabled ? " runway-header__lane-colors--on" : ""}`}
+            onClick={toggleLaneColors}
+            title={laneColorsEnabled ? "关闭泳道配色" : "开启泳道配色"}
+            aria-pressed={laneColorsEnabled}
+          >
+            <Palette size={12} />
+          </button>
           <button type="button" className="runway-header__add-lane" onClick={onAddLane}>
             + 泳道
           </button>

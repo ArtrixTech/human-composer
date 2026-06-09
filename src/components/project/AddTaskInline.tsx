@@ -22,7 +22,7 @@ export function AddTaskInline({ branchId }: { branchId: string }) {
         className="branch-section__add-trigger"
         onClick={() => setOpen(true)}
       >
-        + 添加任务…
+        + 添加行动…
       </button>
     );
   }
@@ -31,7 +31,7 @@ export function AddTaskInline({ branchId }: { branchId: string }) {
     <div className="branch-section__add-form">
       <input
         autoFocus
-        placeholder="任务标题"
+        placeholder="行动标题"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {

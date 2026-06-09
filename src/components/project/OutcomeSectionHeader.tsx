@@ -5,9 +5,9 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Branch, Task } from "../../types";
 import { useAppStore } from "../../store/appStore";
-import "./BranchSectionHeader.css";
+import "./OutcomeSectionHeader.css";
 
-export function BranchSectionHeader({
+export function OutcomeSectionHeader({
   branch,
   tasks,
   collapsed,
@@ -59,11 +59,7 @@ export function BranchSectionHeader({
 
   const confirmDelete = () => {
     setMenuOpen(false);
-    const msg =
-      total > 0
-        ? `删除支线「${branch.name}」及其 ${total} 个任务？此操作不可撤销。`
-        : `删除空支线「${branch.name}」？`;
-    if (window.confirm(msg)) void deleteBranch(branch.id);
+    void deleteBranch(branch.id);
   };
 
   const style = {
@@ -76,7 +72,7 @@ export function BranchSectionHeader({
       <button
         type="button"
         className="branch-header__drag"
-        aria-label="拖拽调整支线顺序"
+        aria-label="拖拽调整目标顺序"
         {...attributes}
         {...listeners}
       >
@@ -113,7 +109,7 @@ export function BranchSectionHeader({
         <button
           type="button"
           className="branch-header__menu-btn"
-          aria-label="支线菜单"
+          aria-label="目标菜单"
           onClick={() => setMenuOpen((o) => !o)}
         >
           <MoreVertical size={14} />
@@ -127,7 +123,7 @@ export function BranchSectionHeader({
               type="button"
               onClick={() => {
                 setMenuOpen(false);
-                if (window.confirm(`归档支线「${branch.name}」？`)) void archiveBranch(branch.id);
+                void archiveBranch(branch.id);
               }}
             >
               归档
@@ -141,3 +137,5 @@ export function BranchSectionHeader({
     </div>
   );
 }
+/** @deprecated Use OutcomeSectionHeader */
+export const BranchSectionHeader = OutcomeSectionHeader;

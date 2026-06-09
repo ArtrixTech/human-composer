@@ -17,6 +17,11 @@ import { AddLaneDialog } from "./AddLaneDialog";
 import { LanesContainer } from "./LanesContainer";
 import { RunwayHeader } from "./RunwayHeader";
 import { TaskBlockPreview } from "./TaskBlockPreview";
+import {
+  normalizeLaneOrder,
+  normalizeLaneTaskOrder,
+  sortLanesForDisplay,
+} from "./runwayTaskUtils";
 
 export function DayRunway() {
   const runwaySnapshot = useAppStore((s) => s.runwaySnapshot);
@@ -26,6 +31,7 @@ export function DayRunway() {
   const createProject = useAppStore((s) => s.createProject);
   const moveBetweenLanes = useAppStore((s) => s.moveBetweenLanes);
   const reorderLaneTasks = useAppStore((s) => s.reorderLaneTasks);
+  const reorderLanes = useAppStore((s) => s.reorderLanes);
 
   const [dragging, setDragging] = useState<TodayTaskContext | null>(null);
 
@@ -33,18 +39,44 @@ export function DayRunway() {
 
   const onDragStart = (event: DragStartEvent) => {
     const data = event.active.data.current as {
-      task: TodayTaskContext;
-      laneId?: string;
+      type?: string;
+      task?: TodayTaskContext;
     };
+    if (data?.type === "lane" || !data?.task) return;
     setDragging(data.task);
   };
 
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setDragging(null);
-    if (!over) return;
+    if (!over || !runwaySnapshot) return;
 
-    const taskData = active.data.current as {
+    const activeData = active.data.current as {
+      type?: string;
+      laneId?: string;
+      task?: TodayTaskContext;
+    };
+
+    if (activeData?.type === "lane" && activeData.laneId) {
+      const overId = String(over.id);
+      if (!overId.startsWith("lane-")) return;
+      const overLaneId = overId.slice("lane-".length);
+      const laneIds = sortLanesForDisplay(
+        runwaySnapshot.lanes as DayLaneSnapshot[],
+      ).map((l) => l.lane.id);
+      const fromIdx = laneIds.indexOf(activeData.laneId);
+      const toIdx = laneIds.indexOf(overLaneId);
+      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+      const next = [...laneIds];
+      next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, activeData.laneId);
+      void reorderLanes(
+        normalizeLaneOrder(runwaySnapshot.lanes as DayLaneSnapshot[], next),
+      );
+      return;
+    }
+
+    const taskData = activeData as {
       task: TodayTaskContext;
       laneId?: string;
     };
@@ -53,7 +85,8 @@ export function DayRunway() {
       taskId?: string;
     };
 
-    const taskId = taskData.task.task.id;
+    if (!taskData.task) return;
+    const taskId = taskData.task.action.id;
 
     if (overData.laneId) {
       if (taskData.laneId && taskData.laneId !== overData.laneId) {
@@ -61,16 +94,19 @@ export function DayRunway() {
         return;
       }
       if (taskData.laneId === overData.laneId && overData.taskId) {
-        const lane = runwaySnapshot?.lanes.find((l) => l.lane.id === overData.laneId);
+        const lane = runwaySnapshot.lanes.find((l) => l.lane.id === overData.laneId);
         if (!lane) return;
-        const ids = lane.tasks.map((t) => t.task.id);
+        const ids = lane.actions.map((t) => t.action.id);
         const fromIdx = ids.indexOf(taskId);
         const toIdx = ids.indexOf(overData.taskId);
         if (fromIdx >= 0 && toIdx >= 0 && fromIdx !== toIdx) {
           const next = [...ids];
           next.splice(fromIdx, 1);
           next.splice(toIdx, 0, taskId);
-          void reorderLaneTasks(overData.laneId, next);
+          void reorderLaneTasks(
+            overData.laneId,
+            normalizeLaneTaskOrder(lane.actions, next),
+          );
         }
       }
     }
@@ -83,7 +119,7 @@ export function DayRunway() {
   if (!runwaySnapshot) {
     return (
       <div className="day-runway day-runway--empty">
-        <p>暂无任务 — 创建项目并添加任务后即可在此查看今日安排</p>
+        <p>暂无行动 — 创建项目并添加行动后即可在此查看今日安排</p>
         <button
           type="button"
           className="day-runway__cta"
@@ -111,7 +147,7 @@ export function DayRunway() {
         {dragging ? (
           <TaskBlockPreview
             ctx={dragging}
-            isPending={dragging.task.status === "pending"}
+            isPending={dragging.action.status === "pending"}
           />
         ) : null}
       </DragOverlay>
