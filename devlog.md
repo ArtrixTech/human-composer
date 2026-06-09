@@ -227,4 +227,4 @@
 - **悬浮窗**：泳道色条内缩伪元素防圆角裁切；claim 后 notice 反馈；外部任务多行展示
 - **交互减负**：`PriorityPicker` / `DurationPicker` 替换数字输入；Kanban 卡片间距 16px、Handle 扩大、依赖快捷选择；列头/列背景 UI 抛光
 
-**Commit:** (pending)
+**Commit:** `d810d67` (also `46cc5cb` priority, `a675ddc` llm)
