@@ -165,14 +165,28 @@ export function normalizeLaneTaskOrder(
   return [...focusIds, ...extIds];
 }
 
-/** Focus lanes first, watch (external) lanes last for display. */
+function tierSortKey(tier: DayLaneSnapshot["lane"]["priorityTier"]): number {
+  if (tier === "H") return 0;
+  if (tier === "M") return 1;
+  return 2;
+}
+
+/** Focus lanes by priority tier H→M→L, watch lanes last. */
 export function sortLanesForDisplay(lanes: DayLaneSnapshot[]): DayLaneSnapshot[] {
   return [...lanes].sort((a, b) => {
     const aWatch = a.lane.laneType === "watch";
     const bWatch = b.lane.laneType === "watch";
     if (aWatch !== bWatch) return aWatch ? 1 : -1;
+    const ta = tierSortKey(a.lane.priorityTier);
+    const tb = tierSortKey(b.lane.priorityTier);
+    if (ta !== tb) return ta - tb;
     return a.lane.sortOrder - b.lane.sortOrder;
   });
+}
+
+/** All externally-active tasks in a lane. */
+export function getLaneExternalTasks(lane: DayLaneSnapshot): TodayTaskContext[] {
+  return lane.actions.filter((t) => isExternalActive(t));
 }
 
 /** Pin watch lanes after focus lanes when reordering. */

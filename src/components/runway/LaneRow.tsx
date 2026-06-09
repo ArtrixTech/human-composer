@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import type { DayLaneSnapshot, TaskDependency } from "../../types";
 import { useAppStore } from "../../store/appStore";
+import { PRIORITY_LABELS } from "../../utils/priorityUtils";
 import { laneColorStyle } from "./laneColors";
 import { LaneTrack } from "./LaneTrack";
 import { partitionLaneTasks } from "./runwayTaskUtils";
@@ -99,7 +100,7 @@ export function LaneRow({
     <section
       ref={setSortableRef}
       style={sectionStyle}
-      className={`lane-section lane-section--${laneSnapshot.lane.laneType}${hasLaneColor ? " lane-section--colored" : ""}${isOver ? " lane-section--over" : ""}${isDragging ? " lane-section--dragging" : ""}`}
+      className={`lane-section lane-section--${laneSnapshot.lane.laneType} lane-section--tier-${laneSnapshot.lane.priorityTier.toLowerCase()}${hasLaneColor ? " lane-section--colored" : ""}${isOver ? " lane-section--over" : ""}${isDragging ? " lane-section--dragging" : ""}`}
     >
       <div className="lane-section__header">
         <button
@@ -137,6 +138,11 @@ export function LaneRow({
             >
               {laneSnapshot.lane.name}
             </button>
+            {!isWatch && (
+              <span className={`lane-section__tier lane-section__tier--${laneSnapshot.lane.priorityTier.toLowerCase()}`}>
+                {PRIORITY_LABELS[laneSnapshot.lane.priorityTier]}
+              </span>
+            )}
             {needsReview && <span className="lane-section__review-dot" title="待审核" />}
             <button
               type="button"

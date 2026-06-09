@@ -6,9 +6,11 @@
 
 .kanban-board__column-bg {
   position: absolute;
-  top: 0;
-  border-right: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
+  top: 8px;
+  bottom: 8px;
+  border-right: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--bg-surface) 0%, rgba(17, 17, 19, 0.6) 100%);
   pointer-events: none;
   z-index: 0;
 }

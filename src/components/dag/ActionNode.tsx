@@ -2,7 +2,8 @@ import { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Archive, Check, FileText, Link2, Pause, Play } from "lucide-react";
 
-import type { Action } from "../../types";
+import type { Action, PriorityLevel } from "../../types";
+import { PRIORITY_LABELS } from "../../utils/priorityUtils";
 import "./TaskNode.css";
 
 export interface ActionNodeData {
@@ -10,12 +11,14 @@ export interface ActionNodeData {
   outcomeName: string;
   isRecommended?: boolean;
   dependencyCount?: number;
+  dependencyOptions?: Action[];
   onSelect?: (taskId: string) => void;
   onStart?: (taskId: string) => void;
   onComplete?: (taskId: string) => void;
   onPause?: (taskId: string) => void;
   onArchive?: (taskId: string) => void;
-  onCyclePriority?: (taskId: string, current: number | null) => void;
+  onCyclePriority?: (taskId: string, current: PriorityLevel) => void;
+  onAddDependency?: (taskId: string, dependsOnId: string) => void;
   [key: string]: unknown;
 }
 
@@ -29,15 +32,18 @@ function ActionNodeComponent({ data }: NodeProps) {
     onSelect,
     onArchive,
     onCyclePriority,
+    onAddDependency,
     isRecommended,
     dependencyCount,
+    dependencyOptions = [],
   } = nodeData;
 
+  const [depOpen, setDepOpen] = useState(false);
   const estimate = task.estimatedMinutes ?? 30;
 
   return (
     <div
-      className={`task-node task-node--${task.status} ${isRecommended ? "task-node--recommended" : ""} ${task.pinned ? "task-node--pinned" : ""}`}
+      className={`task-node task-node--${task.status} task-node--priority-${task.priority.toLowerCase()} ${isRecommended ? "task-node--recommended" : ""} ${task.pinned ? "task-node--pinned" : ""}`}
       onClick={() => onSelect?.(task.id)}
       onKeyDown={() => {}}
       role="button"
@@ -48,7 +54,9 @@ function ActionNodeComponent({ data }: NodeProps) {
         <div className="task-node__title">{task.title}</div>
         <div className="task-node__meta">
           {estimate > 0 && <span>{estimate}m</span>}
-          {task.priority != null && <span>P{task.priority}</span>}
+          <span className={`task-node__priority-badge task-node__priority-badge--${task.priority.toLowerCase()}`}>
+            {task.priority} {PRIORITY_LABELS[task.priority]}
+          </span>
           {(dependencyCount ?? 0) > 0 && (
             <span className="task-node__meta-deps">
               <Link2 size={10} />
@@ -68,14 +76,50 @@ function ActionNodeComponent({ data }: NodeProps) {
           <button
             type="button"
             className="task-node__action task-node__action--priority"
-            title={task.priority != null ? "切换优先级" : "设置优先级"}
+            title="切换优先级 H/M/L"
             onClick={(e) => {
               e.stopPropagation();
               onCyclePriority(task.id, task.priority);
             }}
           >
-            {task.priority != null ? `P${task.priority}` : "P"}
+            {task.priority}
           </button>
+        )}
+        {onAddDependency && dependencyOptions.length > 0 && (
+          <div className="task-node__dep-wrap">
+            <button
+              type="button"
+              className="task-node__action"
+              title="添加依赖"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDepOpen((v) => !v);
+              }}
+            >
+              <Link2 size={12} />
+            </button>
+            {depOpen && (
+              <select
+                className="task-node__dep-select"
+                defaultValue=""
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  const depId = e.target.value;
+                  if (!depId) return;
+                  onAddDependency(task.id, depId);
+                  setDepOpen(false);
+                  e.target.value = "";
+                }}
+              >
+                <option value="">阻塞于…</option>
+                {dependencyOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         )}
         {task.status === "ready" && onStart && (
           <button

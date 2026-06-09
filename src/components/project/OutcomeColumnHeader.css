@@ -1,12 +1,13 @@
 .branch-column-header {
   width: var(--kanban-card-width);
-  height: var(--kanban-header-height);
+  min-height: var(--kanban-header-height);
   display: flex;
   align-items: flex-start;
-  gap: 4px;
-  padding: 0 0 8px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
+  gap: 6px;
+  padding: 8px 8px 10px;
+  border-bottom: 1px solid var(--border-default);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-surface) 100%);
   cursor: default;
 }
 

@@ -158,10 +158,58 @@
   background: var(--border-default) !important;
   border: none !important;
   opacity: 0;
+  /* Larger hit area for connecting */
+  padding: 5px !important;
+  margin: -5px !important;
+  background-clip: content-box !important;
 }
 
 .task-node:hover .task-node__handle {
   opacity: 1;
+}
+
+.task-node--priority-h {
+  border-left-width: 3px;
+  border-left-color: var(--priority-high-border);
+}
+
+.task-node--priority-m {
+  border-left-width: 2px;
+  border-left-color: var(--priority-medium-border);
+}
+
+.task-node--priority-l {
+  border-left-color: var(--priority-low-border);
+}
+
+.task-node__priority-badge--h {
+  color: var(--priority-high);
+  font-weight: 600;
+}
+
+.task-node__priority-badge--m {
+  color: var(--priority-medium);
+}
+
+.task-node__priority-badge--l {
+  color: var(--priority-low);
+}
+
+.task-node__dep-wrap {
+  position: relative;
+}
+
+.task-node__dep-select {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  min-width: 140px;
+  font-size: 10px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
 }
 
 .lane-label {

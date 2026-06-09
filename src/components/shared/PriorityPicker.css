@@ -1,0 +1,42 @@
+.priority-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.priority-picker__btn {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.priority-picker__btn--active.priority--h {
+  background: var(--priority-high-bg);
+  border-color: var(--priority-high-border);
+  color: var(--priority-high);
+  font-weight: 600;
+}
+
+.priority-picker__btn--active.priority--m {
+  background: var(--priority-medium-bg);
+  border-color: var(--priority-medium-border);
+  color: var(--priority-medium);
+  font-weight: 600;
+}
+
+.priority-picker__btn--active.priority--l {
+  background: var(--priority-low-bg);
+  border-color: var(--priority-low-border);
+  color: var(--priority-low);
+  font-weight: 600;
+}
+
+.priority-picker--md .priority-picker__btn {
+  padding: 6px 12px;
+  font-size: var(--text-sm);
+}

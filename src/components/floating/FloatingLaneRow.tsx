@@ -3,8 +3,10 @@ import { Bot, Check, Clock } from "lucide-react";
 import type { DayLaneSnapshot, RecommendedTask, TodayTaskContext } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { laneColorStyle } from "../runway/laneColors";
+import { PRIORITY_LABELS } from "../../utils/priorityUtils";
 import {
   findLaneClaimableOptions,
+  getLaneExternalTasks,
   getLaneState,
   type LaneState,
 } from "../runway/runwayTaskUtils";
@@ -44,10 +46,12 @@ export function FloatingLaneRow({
 }: FloatingLaneRowProps) {
   const laneColorsEnabled = useAppStore((s) => s.laneColorsEnabled);
   const { state, task } = getLaneState(laneSnapshot);
+  const externalTasks = getLaneExternalTasks(laneSnapshot);
   const claimableOptions =
     state === "claimable" ? findLaneClaimableOptions(laneSnapshot, recommendations) : [];
   const isWatch = laneSnapshot.lane.laneType === "watch";
   const laneId = laneSnapshot.lane.id;
+  const tier = laneSnapshot.lane.priorityTier;
 
   const colorStyle = laneColorStyle(laneSnapshot.lane.laneType, focusColorIndex, laneColorsEnabled);
   const hasLaneColor = Boolean(colorStyle);
@@ -55,10 +59,17 @@ export function FloatingLaneRow({
   return (
     <section
       style={colorStyle}
-      className={`floating__lane-row floating__lane-row--${variant} floating__lane-row--${isWatch ? "watch" : "focus"} floating__lane-row--${state}${hasLaneColor ? " floating__lane-row--colored" : ""}`}
+      className={`floating__lane-row floating__lane-row--${variant} floating__lane-row--${isWatch ? "watch" : "focus"} floating__lane-row--${state} floating__lane-row--priority-${tier.toLowerCase()}${hasLaneColor ? " floating__lane-row--colored" : ""}`}
     >
       <div className="floating__lane-row-main">
-        <span className="floating__lane-row-name">{laneSnapshot.lane.name}</span>
+        <span className="floating__lane-row-name">
+          {laneSnapshot.lane.name}
+          {!isWatch && variant === "comfortable" && (
+            <span className={`floating__lane-tier floating__lane-tier--${tier.toLowerCase()}`}>
+              {PRIORITY_LABELS[tier]}
+            </span>
+          )}
+        </span>
         {variant === "comfortable" && state !== "claimable" && (
           <span className="floating__lane-row-state">{STATE_LABEL[state]}</span>
         )}
@@ -78,6 +89,14 @@ export function FloatingLaneRow({
               >
                 {option.action.title}
               </button>
+            ))}
+          </div>
+        ) : state === "external" && externalTasks.length > 0 ? (
+          <div className="floating__lane-external-list">
+            {externalTasks.map((ext) => (
+              <span key={ext.action.id} className="floating__lane-row-task floating__lane-external-item">
+                {ext.action.title}
+              </span>
             ))}
           </div>
         ) : task ? (
@@ -122,15 +141,23 @@ export function FloatingLaneRow({
             )}
           </div>
         )}
-        {state === "external" && task && (
-          <button
-            type="button"
-            className={variant === "compact" ? "floating__icon-btn" : "floating__cta floating__cta--ghost"}
-            title="标记完成"
-            onClick={() => onMarkExternalDone(task)}
-          >
-            {variant === "compact" ? <Check size={14} /> : "标记完成"}
-          </button>
+        {state === "external" && externalTasks.length > 0 && (
+          <div className="floating__external-actions">
+            {externalTasks.slice(0, variant === "compact" ? 2 : 4).map((ext) => (
+              <button
+                key={ext.action.id}
+                type="button"
+                className={variant === "compact" ? "floating__icon-btn" : "floating__cta floating__cta--ghost"}
+                title={`标记完成：${ext.action.title}`}
+                onClick={() => onMarkExternalDone(ext)}
+              >
+                {variant === "compact" ? <Check size={14} /> : "完成"}
+              </button>
+            ))}
+            {externalTasks.length > (variant === "compact" ? 2 : 4) && (
+              <span className="floating__lane-row-empty">+{externalTasks.length - (variant === "compact" ? 2 : 4)}</span>
+            )}
+          </div>
         )}
         {state === "review" && task && (
           <button

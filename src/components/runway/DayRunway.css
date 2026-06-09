@@ -334,6 +334,46 @@
   flex-shrink: 0;
 }
 
+.lane-section__tier {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.lane-section__tier--h {
+  background: var(--priority-high-bg);
+  color: var(--priority-high);
+}
+
+.lane-section__tier--m {
+  background: var(--priority-medium-bg);
+  color: var(--priority-medium);
+}
+
+.lane-section__tier--l {
+  background: var(--priority-low-bg);
+  color: var(--priority-low);
+}
+
+.lane-section--tier-h {
+  border-left-width: 3px;
+}
+
+.task-card__priority--h {
+  color: var(--priority-high);
+  font-weight: 700;
+}
+
+.task-card__priority--m {
+  color: var(--priority-medium);
+}
+
+.task-card__priority--l {
+  color: var(--priority-low);
+}
+
 .lane-section--colored .lane-section__stats {
   color: var(--lane-accent, var(--text-tertiary));
 }

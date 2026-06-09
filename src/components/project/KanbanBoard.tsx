@@ -8,6 +8,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import * as api from "../../api/tauri";
+import type { PriorityLevel } from "../../types";
 import { buildKanbanLayout, COLUMN_WIDTH } from "../../layout/kanbanLayout";
 import { useAppStore } from "../../store/appStore";
 import { nextPriority } from "./taskUtils";
@@ -124,8 +125,14 @@ export function KanbanBoard() {
               onArchive: (taskId: string) => {
                 void archiveTask(taskId, activeProjectId ?? undefined);
               },
-              onCyclePriority: (taskId: string, current: number | null) => {
+              onCyclePriority: (taskId: string, current: PriorityLevel) => {
                 void setTaskPriority(taskId, nextPriority(current));
+              },
+              dependencyOptions: graph.actions.filter(
+                (t) => t.id !== data.task.id && t.status !== "inbox",
+              ),
+              onAddDependency: (taskId: string, dependsOnId: string) => {
+                void api.addDependency(taskId, dependsOnId).then(() => refreshAll());
               },
             },
           };

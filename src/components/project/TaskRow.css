@@ -80,6 +80,22 @@
   color: var(--text-primary);
 }
 
+.task-row__priority--h {
+  color: var(--priority-high);
+  border-color: var(--priority-high-border);
+  background: var(--priority-high-bg);
+}
+
+.task-row__priority--m {
+  color: var(--priority-medium);
+  border-color: var(--priority-medium-border);
+  background: var(--priority-medium-bg);
+}
+
+.task-row__priority--l {
+  color: var(--priority-low);
+}
+
 .task-row__actions {
   display: flex;
   gap: 2px;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import type { DayLaneType } from "../../types";
+import type { DayLaneType, PriorityLevel } from "../../types";
+import { PriorityPicker } from "../shared/PriorityPicker";
 import { useAppStore } from "../../store/appStore";
 
 export function AddLaneDialog({ onClose }: { onClose: () => void }) {
@@ -13,6 +14,7 @@ export function AddLaneDialog({ onClose }: { onClose: () => void }) {
     runwaySnapshot?.lanes.filter((l) => l.lane.laneType === "watch").length ?? 0;
   const defaultName = laneType === "focus" ? `专注线 ${focusCount + 1}` : `等待线 ${watchCount + 1}`;
   const [name, setName] = useState(defaultName);
+  const [priorityTier, setPriorityTier] = useState<PriorityLevel>("M");
 
   useEffect(() => {
     setName(laneType === "focus" ? `专注线 ${focusCount + 1}` : `等待线 ${watchCount + 1}`);
@@ -20,7 +22,7 @@ export function AddLaneDialog({ onClose }: { onClose: () => void }) {
 
   const submit = () => {
     if (!name.trim()) return;
-    void createLane(name.trim(), laneType).then(onClose);
+    void createLane(name.trim(), laneType, laneType === "focus" ? priorityTier : undefined).then(onClose);
   };
 
   return (
@@ -62,6 +64,12 @@ export function AddLaneDialog({ onClose }: { onClose: () => void }) {
             ⏳ 等待
           </label>
         </div>
+        {laneType === "focus" && (
+          <div className="add-lane-dialog__priority">
+            <span>优先级档位</span>
+            <PriorityPicker value={priorityTier} onChange={setPriorityTier} />
+          </div>
+        )}
         <p className="add-lane-dialog__hint">
           专注 = 需要你主动投入注意力 · 等待 = 已委派给外部执行
         </p>

@@ -3,6 +3,8 @@ import { Archive, ArrowDown, ArrowUp, Check, Pause, Pin, Play, Trash2, X } from 
 
 import * as api from "../../api/tauri";
 import { useAppStore } from "../../store/appStore";
+import { DurationPicker } from "../shared/DurationPicker";
+import { PriorityPicker } from "../shared/PriorityPicker";
 import "./DetailPanel.css";
 
 export function DetailPanel() {
@@ -29,7 +31,7 @@ export function DetailPanel() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [estimate, setEstimate] = useState("30");
+  const [estimate, setEstimate] = useState(30);
   const [outcomeNameEditing, setOutcomeNameEditing] = useState(false);
   const [outcomeName, setOutcomeName] = useState("");
 
@@ -37,7 +39,7 @@ export function DetailPanel() {
     if (action) {
       setTitle(action.title);
       setDescription(action.description);
-      setEstimate(String(action.estimatedMinutes ?? 30));
+      setEstimate(action.estimatedMinutes ?? 30);
     }
   }, [action]);
 
@@ -49,7 +51,7 @@ export function DetailPanel() {
 
   const save = async () => {
     await api.updateTask(activeProjectId, action.id, title, description);
-    await api.setTaskEstimatedMinutes(activeProjectId, action.id, parseInt(estimate, 10) || 30);
+    await api.setTaskEstimatedMinutes(activeProjectId, action.id, estimate || 30);
     await refreshAll();
   };
 
@@ -123,35 +125,26 @@ export function DetailPanel() {
         onBlur={() => void save()}
       />
 
-      <label className="detail-panel__estimate">
-        预估时长（分钟）
-        <input
-          type="number"
-          min={5}
-          step={5}
+      <div className="detail-panel__estimate">
+        <span className="detail-panel__estimate-label">预估时长</span>
+        <DurationPicker
           value={estimate}
-          onChange={(e) => setEstimate(e.target.value)}
-          onBlur={() => void save()}
-        />
-      </label>
-
-      <label className="detail-panel__estimate">
-        优先级
-        <select
-          value={action.priority ?? ""}
-          onChange={(e) => {
-            const v = e.target.value;
-            void setTaskPriority(action.id, v === "" ? null : parseInt(v, 10));
+          onChange={(m) => {
+            setEstimate(m);
+            void api
+              .setTaskEstimatedMinutes(activeProjectId, action.id, m)
+              .then(() => refreshAll());
           }}
-        >
-          <option value="">未设置</option>
-          {[1, 2, 3, 4, 5].map((p) => (
-            <option key={p} value={p}>
-              P{p}
-            </option>
-          ))}
-        </select>
-      </label>
+        />
+      </div>
+
+      <div className="detail-panel__estimate">
+        <span className="detail-panel__estimate-label">优先级</span>
+        <PriorityPicker
+          value={action.priority}
+          onChange={(p) => void setTaskPriority(action.id, p)}
+        />
+      </div>
 
       <div className="detail-panel__meta">
         {outcome && (

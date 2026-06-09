@@ -41,7 +41,7 @@ export function TaskRow({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const priorityLabel = task.priority != null ? `P${task.priority}` : "—";
+  const priorityLabel = task.priority;
 
   return (
     <div
@@ -65,8 +65,8 @@ export function TaskRow({
       </button>
       <button
         type="button"
-        className="task-row__priority"
-        title="点击切换优先级 P1–P5"
+        className={`task-row__priority task-row__priority--${task.priority.toLowerCase()}`}
+        title="点击切换优先级 H/M/L"
         onClick={(e) => {
           e.stopPropagation();
           void setTaskPriority(task.id, nextPriority(task.priority));

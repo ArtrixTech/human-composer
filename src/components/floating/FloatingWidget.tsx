@@ -153,8 +153,11 @@ export function FloatingWidget() {
   };
 
   const claim = async (taskId: string, laneId: string, projectId: string) => {
+    const lane = snapshot?.lanes.find((l) => l.lane.id === laneId);
+    const ctx = lane?.actions.find((a) => a.action.id === taskId);
     await api.claimTask(taskId, laneId, projectId);
     setSnapshot(await api.getDayRunwaySnapshot());
+    showFeedback(ctx ? `已开始：${ctx.action.title}` : "已开始");
   };
 
   const markExternalDone = async (ctx: TodayTaskContext) => {
