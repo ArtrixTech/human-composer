@@ -63,7 +63,7 @@ pub fn run() {
             tray::setup_tray(app.handle())?;
             let _ = tray::refresh_tray_menu(app.handle());
 
-            for label in ["main", "floating", "floating-notice"] {
+            for label in ["main", "floating-notice"] {
                 if let Some(window) = app.get_webview_window(label) {
                     let _ = window.set_shadow(true);
                 }
@@ -72,7 +72,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             {
                 use tauri::window::{Effect, EffectsBuilder};
-                for label in ["main", "floating", "floating-notice"] {
+                for label in ["main", "floating-notice"] {
                     if let Some(window) = app.get_webview_window(label) {
                         let _ = window.set_effects(
                             EffectsBuilder::new()
@@ -85,6 +85,9 @@ pub fn run() {
             }
 
             if let Some(floating) = app.get_webview_window("floating") {
+                // Native shadow + ContentBackground draw a rectangular frame on
+                // transparent windows; CSS shell owns rounding and drop shadow.
+                let _ = floating.set_shadow(false);
                 let _ = floating.set_maximizable(false);
                 let _ = floating.set_resizable(false);
             }

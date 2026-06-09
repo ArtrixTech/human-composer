@@ -41,11 +41,7 @@
         "maximizable": false,
         "visible": true,
         "transparent": true,
-        "shadow": true,
-        "windowEffects": {
-          "effects": ["contentBackground"],
-          "radius": 12
-        }
+        "shadow": false
       },
       {
         "label": "floating-notice",

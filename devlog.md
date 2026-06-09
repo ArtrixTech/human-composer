@@ -204,3 +204,10 @@
 - **同步**：主窗口 `LaneRow` 与悬浮窗 `FloatingLaneRow` 共用同一套索引与开关
 
 **Commit:** `4eead85`
+
+## 2026-06-09 — 悬浮窗透明圆角修复 (prev: `253af53`)
+
+- 关闭 floating 窗口原生 shadow / ContentBackground，改由 CSS `floating-shell` 负责圆角与阴影
+- `floating.html` / `floating-window.css`：根节点填满 webview，避免透明窗矩形边框
+
+**Commit:** _(pending)_

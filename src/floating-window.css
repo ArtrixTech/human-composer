@@ -1,0 +1,11 @@
+/* Transparent Tauri window: root must fill the webview so the shell can clip corners. */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
