@@ -8,9 +8,9 @@ import type {
   MainView,
   ProjectGraph,
   ProjectSummary,
-  RecommendedTask,
-  Task,
-  TodayTaskContext,
+  RecommendedAction,
+  Action,
+  TodayActionContext,
 } from "../types";
 import { useToastStore } from "./toastStore";
 import { findFirstClaimable, isClaimCandidate } from "../components/runway/runwayTaskUtils";
@@ -30,7 +30,7 @@ interface AppStore {
   selectedTaskId: string | null;
   detailOpen: boolean;
   commandOpen: boolean;
-  recommendPrompt: RecommendedTask[] | null;
+  recommendPrompt: RecommendedAction[] | null;
   topRecommendationId: string | null;
   addLaneOpen: boolean;
 
@@ -58,6 +58,7 @@ interface AppStore {
   renameLane: (laneId: string, name: string) => Promise<void>;
   assignToLane: (taskId: string, laneId: string, position?: number) => Promise<void>;
   removeFromLane: (taskId: string, laneId: string) => Promise<void>;
+  reorderLanes: (laneIds: string[]) => Promise<void>;
   reorderLaneTasks: (laneId: string, taskIds: string[]) => Promise<void>;
   moveBetweenLanes: (
     taskId: string,
@@ -98,10 +99,10 @@ interface AppStore {
   undo: () => Promise<void>;
 }
 
-function firstActiveTask(snapshot: DayRunwaySnapshot | null): TodayTaskContext | null {
+function firstActiveAction(snapshot: DayRunwaySnapshot | null): TodayActionContext | null {
   if (!snapshot) return null;
   for (const lane of snapshot.lanes) {
-    const active = lane.tasks.find((t) => t.task.status === "active");
+    const active = lane.actions.find((t) => t.action.status === "active");
     if (active) return active;
   }
   return null;
@@ -143,7 +144,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({
           graph,
           snapshot,
-          topRecommendationId: snapshot.recommendations[0]?.task.id ?? null,
+          topRecommendationId: snapshot.recommendations[0]?.action.id ?? null,
         });
       }
     } catch (err) {
@@ -174,7 +175,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({
         graph,
         snapshot,
-        topRecommendationId: snapshot.recommendations[0]?.task.id ?? null,
+        topRecommendationId: snapshot.recommendations[0]?.action.id ?? null,
         selectedTaskId: null,
         detailOpen: false,
       });
@@ -201,7 +202,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({
       graph,
       snapshot,
-      topRecommendationId: snapshot.recommendations[0]?.task.id ?? null,
+      topRecommendationId: snapshot.recommendations[0]?.action.id ?? null,
       currentView: "project",
     });
   },
@@ -238,7 +239,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({
         graph,
         snapshot,
-        topRecommendationId: snapshot.recommendations[0]?.task.id ?? null,
+        topRecommendationId: snapshot.recommendations[0]?.action.id ?? null,
       });
     }
   },
@@ -253,7 +254,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (loading && activeProjectId === snapshot.projectId) {
       set({
         snapshot,
-        topRecommendationId: snapshot.recommendations[0]?.task.id ?? null,
+        topRecommendationId: snapshot.recommendations[0]?.action.id ?? null,
       });
       return;
     }
@@ -263,7 +264,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         snapshot,
         graph,
         activeProjectId: snapshot.projectId,
-        topRecommendationId: snapshot.recommendations[0]?.task.id ?? null,
+        topRecommendationId: snapshot.recommendations[0]?.action.id ?? null,
       });
     } else {
       set({ snapshot });
@@ -293,7 +294,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   closeLane: async (laneId) => {
     await api.closeDayLane(laneId);
     await get().refreshRunway();
-    useToastStore.getState().push({ message: "泳道已关闭，任务已合并到其他泳道" });
+    useToastStore.getState().push({ message: "泳道已关闭，行动已合并到其他泳道" });
   },
 
   renameLane: async (laneId, name) => {
@@ -311,6 +312,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await get().refreshRunway();
   },
 
+  reorderLanes: async (laneIds) => {
+    await api.reorderDayLanes(laneIds);
+    await get().refreshRunway();
+  },
+
   reorderLaneTasks: async (laneId, taskIds) => {
     await api.reorderLaneTasks(laneId, taskIds);
     await get().refreshRunway();
@@ -322,14 +328,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   claimTask: async (taskId, laneId, projectId) => {
-    const previous = firstActiveTask(get().runwaySnapshot);
+    const previous = firstActiveAction(get().runwaySnapshot);
     await api.claimTask(taskId, laneId, projectId);
     await get().refreshAll();
     set({ recommendPrompt: null });
-    const newActive = firstActiveTask(get().runwaySnapshot);
-    if (previous && newActive && previous.task.id !== newActive.task.id) {
+    const newActive = firstActiveAction(get().runwaySnapshot);
+    if (previous && newActive && previous.action.id !== newActive.action.id) {
       useToastStore.getState().push({
-        message: `已切换到「${newActive.task.title}」`,
+        message: `已切换到「${newActive.action.title}」`,
       });
     }
   },
@@ -337,15 +343,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   postponeTask: async (taskId, laneId, projectId) => {
     const title =
       get().runwaySnapshot?.lanes
-        .flatMap((l) => l.tasks)
-        .find((t) => t.task.id === taskId)?.task.title ?? "任务";
+        .flatMap((l) => l.actions)
+        .find((t) => t.action.id === taskId)?.action.title ?? "行动";
     await api.postponeTask(taskId, laneId, projectId);
     await get().refreshAll();
     const snapshot = get().runwaySnapshot;
     const next = snapshot ? findFirstClaimable(snapshot) : null;
     useToastStore.getState().push({
       message: next
-        ? `「${title}」已标记稍后 · 可领取「${next.ctx.task.title}」`
+        ? `「${title}」已标记稍后 · 可领取「${next.ctx.action.title}」`
         : `「${title}」已标记稍后`,
     });
   },
@@ -356,11 +362,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // Check if there is a claimable task in a focus lane to surface to the user
     const snapshot = get().runwaySnapshot;
     const hasClaimable = snapshot?.lanes.some(
-      (l) => l.lane.laneType === "focus" && l.tasks.some(isClaimCandidate),
+      (l) => l.lane.laneType === "focus" && l.actions.some(isClaimCandidate),
     );
     useToastStore.getState().push({
       message: hasClaimable
-        ? "已委派至等待泳道 · 可继续领取下一项专注任务"
+        ? "已委派至等待泳道 · 可继续领取下一项专注行动"
         : "已委派至等待泳道",
     });
   },
@@ -368,7 +374,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   completeExternal: async (taskId, projectId) => {
     await api.completeExternalTask(taskId, projectId);
     await get().refreshAll();
-    useToastStore.getState().push({ message: "外部任务已完成，等待审核" });
+    useToastStore.getState().push({ message: "外部行动已完成，等待审核" });
   },
 
   reviewExternal: async (taskId, projectId, action) => {
@@ -386,16 +392,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const result = await api.createTask(projectId, title);
     await get().refreshAll();
     useToastStore.getState().push({
-      message: `已添加「${result.task.title}」到 Inbox`,
-      undo: () => api.deleteTask(projectId, result.task.id).then(() => get().refreshAll()),
+      message: `已添加「${result.action.title}」到 Inbox`,
+      undo: () => api.deleteTask(projectId, result.action.id).then(() => get().refreshAll()),
     });
-    if (result.branchSuggestion) {
+    if (result.outcomeSuggestion) {
       useToastStore.getState().push({
-        message: `建议分配到「${result.branchSuggestion.branchName}」`,
+        message: `建议分配到「${result.outcomeSuggestion.branchName}」`,
         actionLabel: "确认",
         onAction: () =>
           api
-            .assignTaskToBranch(result.task.id, result.branchSuggestion!.branchId)
+            .assignTaskToBranch(result.action.id, result.outcomeSuggestion!.branchId)
             .then(() => get().refreshAll()),
       });
     }
@@ -407,8 +413,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const result = await api.createTask(activeProjectId, title, branchId);
     await get().refreshAll();
     useToastStore.getState().push({
-      message: `已创建「${result.task.title}」`,
-      undo: () => api.deleteTask(activeProjectId, result.task.id).then(() => get().refreshAll()),
+      message: `已创建「${result.action.title}」`,
+      undo: () => api.deleteTask(activeProjectId, result.action.id).then(() => get().refreshAll()),
     });
   },
 
@@ -417,7 +423,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!activeProjectId) return;
     await api.createBranch(activeProjectId, name);
     await get().refreshAll();
-    useToastStore.getState().push({ message: `已创建支线「${name}」` });
+    useToastStore.getState().push({ message: `已创建目标「${name}」` });
   },
 
   renameBranch: async (branchId, name) => {
@@ -430,7 +436,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   archiveBranch: async (branchId) => {
     const { activeProjectId, graph } = get();
     if (!activeProjectId) return;
-    const name = graph?.branches.find((b) => b.id === branchId)?.name ?? "支线";
+    const name = graph?.outcomes.find((b) => b.id === branchId)?.name ?? "目标";
     await api.archiveBranch(activeProjectId, branchId);
     await get().refreshAll();
     useToastStore.getState().push({
@@ -444,13 +450,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!activeProjectId) return;
     await api.unarchiveBranch(activeProjectId, branchId);
     await get().refreshAll();
-    useToastStore.getState().push({ message: "已恢复支线" });
+    useToastStore.getState().push({ message: "已恢复目标" });
   },
 
   deleteBranch: async (branchId) => {
     const { activeProjectId, graph } = get();
     if (!activeProjectId) return;
-    const name = graph?.branches.find((b) => b.id === branchId)?.name ?? "支线";
+    const name = graph?.outcomes.find((b) => b.id === branchId)?.name ?? "目标";
     await api.deleteBranch(activeProjectId, branchId);
     await get().refreshAll();
     useToastStore.getState().push({ message: `已删除「${name}」` });
@@ -472,9 +478,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   archiveTask: async (taskId, projectId) => {
     const pid =
-      projectId ?? get().activeProjectId ?? get().graph?.tasks.find((t) => t.id === taskId)?.projectId;
+      projectId ?? get().activeProjectId ?? get().graph?.actions.find((t) => t.id === taskId)?.projectId;
     if (!pid) return;
-    const title = get().graph?.tasks.find((t) => t.id === taskId)?.title ?? "任务";
+    const title = get().graph?.actions.find((t) => t.id === taskId)?.title ?? "行动";
     await api.archiveTask(pid, taskId);
     await get().refreshAll();
     if (get().selectedTaskId === taskId) {
@@ -491,7 +497,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!pid) return;
     await api.unarchiveTask(pid, taskId);
     await get().refreshAll();
-    useToastStore.getState().push({ message: "已恢复任务" });
+    useToastStore.getState().push({ message: "已恢复行动" });
   },
 
   reorderBranchTasks: async (branchId, taskIds) => {
@@ -504,20 +510,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
   assignInboxTask: async (taskId, branchId) => {
     await api.assignTaskToBranch(taskId, branchId);
     await get().refreshAll();
-    useToastStore.getState().push({ message: "已分配到支线" });
+    useToastStore.getState().push({ message: "已分配到目标" });
   },
 
   completeTask: async (taskId, projectId, _laneId) => {
     const pid =
       projectId ??
       get().runwaySnapshot?.lanes
-        .flatMap((l) => l.tasks)
-        .find((t) => t.task.id === taskId)?.projectId;
+        .flatMap((l) => l.actions)
+        .find((t) => t.action.id === taskId)?.projectId;
     if (!pid) return;
     const result = await api.completeTask(taskId, pid);
     await get().refreshAll();
     useToastStore.getState().push({
-      message: `已完成「${result.completedTask.title}」`,
+      message: `已完成「${result.completedAction.title}」`,
       undo: () => get().undo(),
     });
     if (get().currentView === "project" && result.recommendations.length > 0) {
@@ -541,7 +547,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   deleteTask: async (taskId, projectId) => {
-    const title = get().graph?.tasks.find((t) => t.id === taskId)?.title ?? "任务";
+    const title = get().graph?.actions.find((t) => t.id === taskId)?.title ?? "行动";
     await api.deleteTask(projectId, taskId);
     await get().refreshAll();
     set({ detailOpen: false, selectedTaskId: null });
@@ -563,12 +569,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 }));
 
-export function getSelectedTask(): Task | null {
+export function getSelectedAction(): Action | null {
   const { graph, selectedTaskId } = useAppStore.getState();
   if (!graph || !selectedTaskId) return null;
-  return graph.tasks.find((t) => t.id === selectedTaskId) ?? null;
+  return graph.actions.find((t) => t.id === selectedTaskId) ?? null;
 }
+/** @deprecated Use getSelectedAction */
+export const getSelectedTask = getSelectedAction;
 
-export function getFirstActiveTask(): TodayTaskContext | null {
-  return firstActiveTask(useAppStore.getState().runwaySnapshot);
+export function getFirstActiveAction(): TodayActionContext | null {
+  return firstActiveAction(useAppStore.getState().runwaySnapshot);
 }
+/** @deprecated Use getFirstActiveAction */
+export const getFirstActiveTask = getFirstActiveAction;

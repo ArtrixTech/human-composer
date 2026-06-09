@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 
-import type { AppSnapshot, DayRunwaySnapshot } from "../types";
+import { parseAppSnapshot, parseDayRunwaySnapshot } from "../types";
 import { getFirstActiveTask, useAppStore } from "../store/appStore";
 
 export function useGraphSync() {
@@ -16,18 +16,24 @@ export function useGraphSync() {
     const unsubs: Array<Promise<() => void>> = [];
 
     unsubs.push(
-      listen<AppSnapshot>("graph-updated", (event) => {
-        void applySnapshot(event.payload);
+      listen("graph-updated", (event) => {
+        void applySnapshot(
+          parseAppSnapshot(event.payload as Parameters<typeof parseAppSnapshot>[0]),
+        );
       }),
     );
     unsubs.push(
-      listen<DayRunwaySnapshot>("runway-updated", (event) => {
-        applyRunwaySnapshot(event.payload);
+      listen("runway-updated", (event) => {
+        applyRunwaySnapshot(
+          parseDayRunwaySnapshot(event.payload as Parameters<typeof parseDayRunwaySnapshot>[0]),
+        );
       }),
     );
     unsubs.push(
-      listen<DayRunwaySnapshot>("today-updated", (event) => {
-        applyRunwaySnapshot(event.payload);
+      listen("today-updated", (event) => {
+        applyRunwaySnapshot(
+          parseDayRunwaySnapshot(event.payload as Parameters<typeof parseDayRunwaySnapshot>[0]),
+        );
       }),
     );
     unsubs.push(listen("shortcut-command-palette", () => setCommandOpen(true)));
@@ -36,7 +42,7 @@ export function useGraphSync() {
     unsubs.push(
       listen("shortcut-complete-task", () => {
         const active = getFirstActiveTask();
-        if (active) void completeActive(active.task.id, active.projectId);
+        if (active) void completeActive(active.action.id, active.projectId);
       }),
     );
 

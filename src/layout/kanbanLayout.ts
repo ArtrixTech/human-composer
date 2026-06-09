@@ -120,7 +120,7 @@ export function buildKanbanLayout(
 
     nodes.push({
       id: `header-${branch.id}`,
-      type: "branchHeader",
+      type: "outcomeHeader",
       position: { x: contentX, y: 0 },
       data: {
         label: branch.name,
@@ -136,9 +136,9 @@ export function buildKanbanLayout(
       const y = COLUMN_HEADER_HEIGHT + index * (CARD_HEIGHT + CARD_GAP);
       nodes.push({
         id: task.id,
-        type: "task",
+        type: "action",
         position: { x: contentX, y },
-        data: { task, branchName: branch.name },
+        data: { task, outcomeName: branch.name },
       });
     });
 
