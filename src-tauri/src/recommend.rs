@@ -1,8 +1,24 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::models::{
-    Action, ActionDependency, ActionStatus, Outcome, RecommendedAction,
+    Action, ActionDependency, ActionStatus, Outcome, PriorityLevel, RecommendedAction,
 };
+
+pub fn compute_action_priority_score(
+    task: &Action,
+    project_priority: PriorityLevel,
+    blocked_count: i32,
+    branch_stale: f64,
+) -> f64 {
+    let mut score = task.priority.score_weight()
+        + blocked_count as f64 * 10.0
+        + project_priority.score_weight() / 10.0 * 30.0
+        + branch_stale * 3.0;
+    if task.pinned {
+        score += 1000.0;
+    }
+    score
+}
 
 pub fn compute_recommendations(
     outcomes: &[Outcome],
@@ -43,15 +59,7 @@ pub fn compute_recommendations(
                 .copied()
                 .unwrap_or(0.0);
 
-            let mut score = blocked_count as f64 * 10.0 + branch_stale * 3.0;
-            if task.pinned {
-                score += 1000.0;
-            }
-            if let Some(p) = task.priority {
-                if (1..=5).contains(&p) {
-                    score += (6 - p) as f64 * 50.0;
-                }
-            }
+            let score = compute_action_priority_score(task, PriorityLevel::Medium, blocked_count, branch_stale);
 
             RecommendedAction {
                 task: task.clone(),

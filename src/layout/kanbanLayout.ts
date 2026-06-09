@@ -30,9 +30,15 @@ export interface KanbanLayoutResult {
   };
 }
 
+function priorityKey(p: Task["priority"]): number {
+  if (p === "H") return 0;
+  if (p === "M") return 1;
+  return 2;
+}
+
 function defaultSort(a: Task, b: Task): number {
-  const pa = a.priority ?? Number.MAX_SAFE_INTEGER;
-  const pb = b.priority ?? Number.MAX_SAFE_INTEGER;
+  const pa = priorityKey(a.priority);
+  const pb = priorityKey(b.priority);
   if (pa !== pb) return pa - pb;
   if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
   return a.createdAt.localeCompare(b.createdAt);

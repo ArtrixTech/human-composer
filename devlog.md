@@ -217,3 +217,14 @@
 - 更新 `.cursor/plans/支线任务概念重命名_2e0b640e.plan.md`：Phase 0–5 todos 标记为 completed
 
 **Commit:** `111ceea`
+
+## 2026-06-09 — 体验堵点全面优化 (prev: `111ceea`)
+
+- **优先级 H/M/L**：`Action.priority`、`DayLane.priorityTier`、`Project.priority` 三档枚举；DB 迁移旧 P1–P5；推荐引擎与泳道排序联动
+- **泳道自动分配**：首日创建「重要/日常/可选」三泳道；`sync_day_runway` 按 Action 优先级入对应 tier；跨泳道拖拽同步 priority
+- **LLM**：`llm.rs` + `reqwest` OpenAI-compatible；`get/set/test_llm_config` IPC；侧栏 AI 设置面板；创建 Inbox 行动时 LLM 建议 Outcome（降级关键词）
+- **自动化**：`create_task` / `assign_task_to_branch` 后 `auto_slot_action_to_lane`；置信度 ≥0.8 自动分配 Outcome
+- **悬浮窗**：泳道色条内缩伪元素防圆角裁切；claim 后 notice 反馈；外部任务多行展示
+- **交互减负**：`PriorityPicker` / `DurationPicker` 替换数字输入；Kanban 卡片间距 16px、Handle 扩大、依赖快捷选择；列头/列背景 UI 抛光
+
+**Commit:** (pending)

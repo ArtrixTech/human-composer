@@ -1,3 +1,5 @@
+export type PriorityLevel = "H" | "M" | "L";
+
 export type ActionStatus = "inbox" | "pending" | "ready" | "active" | "done";
 /** @deprecated Use ActionStatus */
 export type TaskStatus = ActionStatus;
@@ -14,6 +16,7 @@ export interface Project {
   name: string;
   sourceType: string;
   sourceRef: string | null;
+  priority: PriorityLevel;
   createdAt: string;
 }
 
@@ -42,7 +45,7 @@ export interface Action {
   externalStartedAt: string | null;
   externalCompletedAt: string | null;
   externalNote: string | null;
-  priority: number | null;
+  priority: PriorityLevel;
   archived: boolean;
   postponed: boolean;
   createdAt: string;
@@ -142,8 +145,16 @@ export interface DayLane {
   date: string;
   name: string;
   laneType: DayLaneType;
+  priorityTier: PriorityLevel;
   sortOrder: number;
   createdAt: string;
+}
+
+export interface LlmConfig {
+  enabled: boolean;
+  endpoint: string;
+  apiKey: string;
+  model: string;
 }
 
 export interface DayLaneSnapshot {

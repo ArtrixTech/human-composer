@@ -70,9 +70,20 @@
   --kanban-column-gutter: 8px;
   --kanban-card-width: 180px;
   --kanban-card-height: 76px;
-  --kanban-card-gap: 8px;
+  --kanban-card-gap: 16px;
   --kanban-header-height: 40px;
   --kanban-add-task-height: 32px;
+
+  /* Priority tiers H / M / L */
+  --priority-high: #f97316;
+  --priority-high-bg: rgba(249, 115, 22, 0.14);
+  --priority-high-border: #ea580c;
+  --priority-medium: #5e6ad2;
+  --priority-medium-bg: rgba(94, 106, 210, 0.14);
+  --priority-medium-border: #4f5abf;
+  --priority-low: #71717a;
+  --priority-low-bg: rgba(113, 113, 122, 0.08);
+  --priority-low-border: #52525b;
 }
 
 * {

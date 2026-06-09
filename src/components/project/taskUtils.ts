@@ -15,11 +15,7 @@ export function blockedCount(taskId: string, dependencies: TaskDependency[]): nu
   return dependencies.filter((d) => d.dependsOnTaskId === taskId).length;
 }
 
-export function nextPriority(current: number | null): number | null {
-  if (current == null) return 1;
-  if (current >= 5) return null;
-  return current + 1;
-}
+export { nextPriority } from "../../utils/priorityUtils";
 
 export function formatEstimate(minutes: number | null): string {
   if (minutes == null || minutes <= 0) return "—";

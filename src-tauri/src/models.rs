@@ -1,6 +1,79 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum PriorityLevel {
+    #[serde(rename = "H")]
+    High,
+    #[serde(rename = "M")]
+    Medium,
+    #[default]
+    #[serde(rename = "L")]
+    Low,
+}
+
+impl PriorityLevel {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::High => "H",
+            Self::Medium => "M",
+            Self::Low => "L",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value.to_uppercase().as_str() {
+            "H" | "HIGH" => Self::High,
+            "M" | "MEDIUM" => Self::Medium,
+            _ => Self::Low,
+        }
+    }
+
+    pub fn sort_key(&self) -> i32 {
+        match self {
+            Self::High => 0,
+            Self::Medium => 1,
+            Self::Low => 2,
+        }
+    }
+
+    pub fn score_weight(&self) -> f64 {
+        match self {
+            Self::High => 300.0,
+            Self::Medium => 150.0,
+            Self::Low => 50.0,
+        }
+    }
+
+    pub fn label_zh(&self) -> &'static str {
+        match self {
+            Self::High => "重要",
+            Self::Medium => "普通",
+            Self::Low => "可选",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmConfig {
+    pub enabled: bool,
+    pub endpoint: String,
+    pub api_key: String,
+    pub model: String,
+}
+
+impl Default for LlmConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            endpoint: "https://api.openai.com/v1".to_string(),
+            api_key: String::new(),
+            model: "gpt-4o-mini".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
@@ -41,6 +114,7 @@ pub struct Project {
     pub name: String,
     pub source_type: String,
     pub source_ref: Option<String>,
+    pub priority: PriorityLevel,
     pub created_at: DateTime<Utc>,
 }
 
@@ -141,7 +215,7 @@ pub struct Task {
     pub external_started_at: Option<DateTime<Utc>>,
     pub external_completed_at: Option<DateTime<Utc>>,
     pub external_note: Option<String>,
-    pub priority: Option<i32>,
+    pub priority: PriorityLevel,
     pub archived: bool,
     pub postponed: bool,
     pub created_at: DateTime<Utc>,
@@ -155,6 +229,7 @@ pub struct DayLane {
     pub date: String,
     pub name: String,
     pub lane_type: DayLaneType,
+    pub priority_tier: PriorityLevel,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
 }

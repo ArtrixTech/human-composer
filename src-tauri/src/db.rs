@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 use crate::models::{
     AppSnapshot, Branch, DayLane, DayLaneTask, DayLaneType, DayRunwaySnapshot, ExternalStatus,
-    Project, ProjectGraph, ProjectSummary, RecommendedTask, Task, TaskDependency, TaskStatus,
-    TaskType, TaskWithBranch, TodaySnapshot,
+    PriorityLevel, Project, ProjectGraph, ProjectSummary, RecommendedTask, Task, TaskDependency,
+    TaskStatus, TaskType, TaskWithBranch, TodaySnapshot,
 };
 use crate::recommend::compute_recommendations;
 use crate::runway::{self, local_date_string, previous_date_string, RunwayBuildInput};
@@ -104,14 +104,54 @@ impl Database {
         self.ensure_column("tasks", "external_started_at", "TEXT")?;
         self.ensure_column("tasks", "external_completed_at", "TEXT")?;
         self.ensure_column("tasks", "external_note", "TEXT")?;
-        self.ensure_column("tasks", "priority", "INTEGER")?;
+        self.ensure_column("tasks", "priority", "TEXT NOT NULL DEFAULT 'L'")?;
         self.ensure_column("tasks", "archived", "INTEGER NOT NULL DEFAULT 0")?;
         self.ensure_column("tasks", "postponed", "INTEGER NOT NULL DEFAULT 0")?;
+        self.ensure_column("projects", "priority", "TEXT NOT NULL DEFAULT 'L'")?;
+        self.ensure_column("day_lanes", "priority_tier", "TEXT NOT NULL DEFAULT 'M'")?;
+        self.ensure_column("day_lane_tasks", "sticky", "INTEGER NOT NULL DEFAULT 0")?;
+
+        self.migrate_priorities_to_hml()?;
 
         if self.get_setting("day_end_time")?.is_none() {
             self.set_setting("day_end_time", DEFAULT_DAY_END)?;
         }
 
+        Ok(())
+    }
+
+    fn parse_priority_value(value: rusqlite::types::Value) -> PriorityLevel {
+        match value {
+            rusqlite::types::Value::Integer(n) => match n {
+                1 | 2 => PriorityLevel::High,
+                3 => PriorityLevel::Medium,
+                _ => PriorityLevel::Low,
+            },
+            rusqlite::types::Value::Text(ref s) => PriorityLevel::from_str(s),
+            _ => PriorityLevel::Low,
+        }
+    }
+
+    fn migrate_priorities_to_hml(&self) -> rusqlite::Result<()> {
+        if self.get_setting("priority_hml_migrated")?.as_deref() == Some("1") {
+            return Ok(());
+        }
+        let mut stmt = self.conn.prepare("SELECT id, priority FROM tasks")?;
+        let rows: Vec<(String, rusqlite::types::Value)> = stmt
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get::<_, rusqlite::types::Value>(1)?))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        for (id, val) in rows {
+            let level = Self::parse_priority_value(val);
+            self.conn.execute(
+                "UPDATE tasks SET priority = ?1 WHERE id = ?2",
+                params![level.as_str(), id],
+            )?;
+        }
+        self.set_setting("priority_hml_migrated", "1")?;
         Ok(())
     }
 
@@ -138,7 +178,7 @@ impl Database {
             external_started_at: row.get::<_, Option<String>>(13)?.and_then(|s| s.parse().ok()),
             external_completed_at: row.get::<_, Option<String>>(14)?.and_then(|s| s.parse().ok()),
             external_note: row.get(15)?,
-            priority: row.get(16)?,
+            priority: Self::parse_priority_value(row.get::<_, rusqlite::types::Value>(16)?),
             archived: row.get::<_, i32>(17)? != 0,
             postponed: row.get::<_, i32>(18)? != 0,
         })
@@ -361,15 +401,17 @@ impl Database {
 
     fn get_project(&self, project_id: &str) -> rusqlite::Result<Project> {
         self.conn.query_row(
-            "SELECT id, name, source_type, source_ref, created_at FROM projects WHERE id = ?1",
+            "SELECT id, name, source_type, source_ref, priority, created_at FROM projects WHERE id = ?1",
             params![project_id],
             |row| {
+                let priority_raw: String = row.get(4)?;
                 Ok(Project {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     source_type: row.get(2)?,
                     source_ref: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse().unwrap_or_else(|_| Utc::now()),
+                    priority: PriorityLevel::from_str(&priority_raw),
+                    created_at: row.get::<_, String>(5)?.parse().unwrap_or_else(|_| Utc::now()),
                 })
             },
         )
@@ -399,8 +441,8 @@ impl Database {
         let mut stmt = self.conn.prepare(
             &format!(
                 "{} FROM tasks t WHERE t.project_id = ?1 AND t.archived = 0
-                 ORDER BY CASE WHEN t.priority IS NULL THEN 1 ELSE 0 END,
-                          t.priority ASC, t.sort_order ASC, t.created_at ASC",
+                 ORDER BY CASE t.priority WHEN 'H' THEN 0 WHEN 'M' THEN 1 ELSE 2 END,
+                          t.sort_order ASC, t.created_at ASC",
                 Self::TASK_SELECT
             ),
         )?;
@@ -680,17 +722,10 @@ impl Database {
         Ok(())
     }
 
-    pub fn set_task_priority(&self, task_id: &str, priority: Option<i32>) -> rusqlite::Result<Task> {
-        if let Some(p) = priority {
-            if !(1..=5).contains(&p) {
-                return Err(rusqlite::Error::InvalidParameterName(
-                    "priority must be 1-5".into(),
-                ));
-            }
-        }
+    pub fn set_task_priority(&self, task_id: &str, priority: PriorityLevel) -> rusqlite::Result<Task> {
         self.conn.execute(
             "UPDATE tasks SET priority = ?1 WHERE id = ?2",
-            params![priority, task_id],
+            params![priority.as_str(), task_id],
         )?;
         self.get_task(task_id)
     }
@@ -993,20 +1028,25 @@ impl Database {
 
     fn map_lane_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DayLane> {
         let lane_type_str: String = row.get(3)?;
+        let tier_raw: String = row.get(4)?;
         Ok(DayLane {
             id: row.get(0)?,
             date: row.get(1)?,
             name: row.get(2)?,
             lane_type: DayLaneType::from_str(&lane_type_str),
-            sort_order: row.get(4)?,
-            created_at: row.get::<_, String>(5)?.parse().unwrap_or_else(|_| Utc::now()),
+            priority_tier: PriorityLevel::from_str(&tier_raw),
+            sort_order: row.get(5)?,
+            created_at: row.get::<_, String>(6)?.parse().unwrap_or_else(|_| Utc::now()),
         })
     }
 
     pub fn get_lanes_for_date(&self, date: &str) -> rusqlite::Result<Vec<DayLane>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, date, name, lane_type, sort_order, created_at
-             FROM day_lanes WHERE date = ?1 ORDER BY sort_order ASC",
+            "SELECT id, date, name, lane_type, priority_tier, sort_order, created_at
+             FROM day_lanes WHERE date = ?1
+             ORDER BY CASE lane_type WHEN 'watch' THEN 1 ELSE 0 END,
+                      CASE priority_tier WHEN 'H' THEN 0 WHEN 'M' THEN 1 ELSE 2 END,
+                      sort_order ASC",
         )?;
         let rows = stmt.query_map(params![date], Self::map_lane_row)?;
         rows.collect()
@@ -1053,6 +1093,21 @@ impl Database {
         name: &str,
         lane_type: DayLaneType,
     ) -> rusqlite::Result<DayLane> {
+        let tier = if lane_type == DayLaneType::Watch {
+            PriorityLevel::Low
+        } else {
+            PriorityLevel::Medium
+        };
+        self.create_day_lane_with_tier(date, name, lane_type, tier)
+    }
+
+    pub fn create_day_lane_with_tier(
+        &self,
+        date: &str,
+        name: &str,
+        lane_type: DayLaneType,
+        priority_tier: PriorityLevel,
+    ) -> rusqlite::Result<DayLane> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let sort_order: i32 = self.conn.query_row(
@@ -1061,19 +1116,95 @@ impl Database {
             |row| row.get(0),
         )?;
         self.conn.execute(
-            "INSERT INTO day_lanes (id, date, name, lane_type, sort_order, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id, date, name, lane_type.as_str(), sort_order, now],
+            "INSERT INTO day_lanes (id, date, name, lane_type, priority_tier, sort_order, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                id,
+                date,
+                name,
+                lane_type.as_str(),
+                priority_tier.as_str(),
+                sort_order,
+                now
+            ],
         )?;
         self.get_day_lane(&id)
     }
 
     pub fn get_day_lane(&self, lane_id: &str) -> rusqlite::Result<DayLane> {
         self.conn.query_row(
-            "SELECT id, date, name, lane_type, sort_order, created_at FROM day_lanes WHERE id = ?1",
+            "SELECT id, date, name, lane_type, priority_tier, sort_order, created_at FROM day_lanes WHERE id = ?1",
             params![lane_id],
             Self::map_lane_row,
         )
+    }
+
+    fn lane_id_for_priority_tier(
+        &self,
+        lanes: &[DayLane],
+        tier: PriorityLevel,
+    ) -> rusqlite::Result<String> {
+        let focus: Vec<&DayLane> = lanes
+            .iter()
+            .filter(|l| l.lane_type == DayLaneType::Focus)
+            .collect();
+        if let Some(exact) = focus.iter().find(|l| l.priority_tier == tier) {
+            return Ok(exact.id.clone());
+        }
+        if let Some(fallback) = focus.iter().min_by_key(|l| {
+            (l.priority_tier.sort_key() as i32 - tier.sort_key() as i32).abs()
+        }) {
+            return Ok(fallback.id.clone());
+        }
+        Err(rusqlite::Error::InvalidParameterName("no focus lane".into()))
+    }
+
+    fn ensure_default_tier_lanes(&self, date: &str) -> rusqlite::Result<Vec<DayLane>> {
+        let lanes = self.get_lanes_for_date(date)?;
+        let has_focus = lanes.iter().any(|l| l.lane_type == DayLaneType::Focus);
+        if !has_focus {
+            for (name, tier) in [
+                ("重要", PriorityLevel::High),
+                ("日常", PriorityLevel::Medium),
+                ("可选", PriorityLevel::Low),
+            ] {
+                self.create_day_lane_with_tier(date, name, DayLaneType::Focus, tier)?;
+            }
+            return self.get_lanes_for_date(date);
+        }
+        for tier in [
+            PriorityLevel::High,
+            PriorityLevel::Medium,
+            PriorityLevel::Low,
+        ] {
+            let exists = lanes
+                .iter()
+                .any(|l| l.lane_type == DayLaneType::Focus && l.priority_tier == tier);
+            if !exists {
+                self.create_day_lane_with_tier(date, tier.label_zh(), DayLaneType::Focus, tier)?;
+            }
+        }
+        self.get_lanes_for_date(date)
+    }
+
+    pub fn auto_slot_action_to_lane(&self, task_id: &str) -> rusqlite::Result<()> {
+        let date = local_date_string();
+        self.ensure_default_tier_lanes(&date)?;
+        let task = self.get_task(task_id)?;
+        if !matches!(
+            task.status,
+            TaskStatus::Ready | TaskStatus::Pending | TaskStatus::Active
+        ) {
+            return Ok(());
+        }
+        let assigned = self.assigned_task_ids_for_date(&date)?;
+        if assigned.contains(task_id) {
+            return Ok(());
+        }
+        let lanes = self.get_lanes_for_date(&date)?;
+        let lane_id = self.lane_id_for_priority_tier(&lanes, task.priority)?;
+        self.assign_task_to_lane(task_id, &lane_id, None)?;
+        Ok(())
     }
 
     pub fn rename_day_lane(&self, lane_id: &str, name: &str) -> rusqlite::Result<DayLane> {
@@ -1175,8 +1306,17 @@ impl Database {
         to_lane_id: &str,
         position: Option<i32>,
     ) -> rusqlite::Result<()> {
+        let target_lane = self.get_day_lane(to_lane_id)?;
         self.remove_task_from_lane(task_id, from_lane_id)?;
-        self.assign_task_to_lane(task_id, to_lane_id, position)
+        self.assign_task_to_lane(task_id, to_lane_id, position)?;
+        if target_lane.lane_type == DayLaneType::Focus {
+            self.set_task_priority(task_id, target_lane.priority_tier)?;
+        }
+        self.conn.execute(
+            "UPDATE day_lane_tasks SET sticky = 1 WHERE lane_id = ?1 AND task_id = ?2",
+            params![to_lane_id, task_id],
+        )?;
+        Ok(())
     }
 
     pub fn append_newly_ready_to_lane(
@@ -1345,35 +1485,35 @@ impl Database {
     /// Keep today's runway aligned with actionable tasks: create lanes if missing,
     /// attach orphaned active tasks, and fill empty lanes on first use.
     pub fn sync_day_runway(&self, date: &str) -> rusqlite::Result<()> {
-        let mut lanes = self.get_lanes_for_date(date)?;
-        if lanes.is_empty() {
+        if self.get_lanes_for_date(date)?.is_empty() {
             self.auto_populate_runway(date)?;
-            lanes = self.get_lanes_for_date(date)?;
         }
-        let Some(default_lane_id) = self.default_focus_lane_id(date)? else {
-            return Ok(());
-        };
+        let lanes = self.ensure_default_tier_lanes(date)?;
 
         let mut assigned = self.assigned_task_ids_for_date(date)?;
         let all_tasks = self.get_all_tasks()?;
 
         for task in &all_tasks {
             if task.status == TaskStatus::Active && !assigned.contains(&task.id) {
-                self.assign_task_to_lane(&task.id, &default_lane_id, None)?;
+                let lane_id = self.lane_id_for_priority_tier(&lanes, task.priority)?;
+                self.assign_task_to_lane(&task.id, &lane_id, None)?;
                 assigned.insert(task.id.clone());
             }
         }
 
         if self.count_live_lane_tasks_for_date(date)? == 0 {
-            self.populate_lane_with_actionable_tasks(&default_lane_id)?;
-            assigned = self.assigned_task_ids_for_date(date)?;
+            if let Ok(medium_lane) = self.lane_id_for_priority_tier(&lanes, PriorityLevel::Medium) {
+                self.populate_lane_with_actionable_tasks(&medium_lane)?;
+                assigned = self.assigned_task_ids_for_date(date)?;
+            }
         }
 
         for task in &all_tasks {
             if matches!(task.status, TaskStatus::Ready | TaskStatus::Pending)
                 && !assigned.contains(&task.id)
             {
-                self.assign_task_to_lane(&task.id, &default_lane_id, None)?;
+                let lane_id = self.lane_id_for_priority_tier(&lanes, task.priority)?;
+                self.assign_task_to_lane(&task.id, &lane_id, None)?;
             }
         }
 
@@ -1398,7 +1538,12 @@ impl Database {
                     std::collections::HashMap::new();
 
                 for prev_lane in &prev_lanes {
-                    let new_lane = self.create_day_lane(date, &prev_lane.name, prev_lane.lane_type.clone())?;
+                    let new_lane = self.create_day_lane_with_tier(
+                        date,
+                        &prev_lane.name,
+                        prev_lane.lane_type.clone(),
+                        prev_lane.priority_tier,
+                    )?;
                     lane_id_map.insert(prev_lane.id.clone(), new_lane.id.clone());
 
                     let mut tasks_for_lane: Vec<(String, i32)> = prev_lane_tasks
@@ -1424,8 +1569,17 @@ impl Database {
             }
         }
 
-        let lane = self.create_day_lane(date, "主线", DayLaneType::Focus)?;
-        self.populate_lane_with_actionable_tasks(&lane.id)?;
+        for (name, tier) in [
+            ("重要", PriorityLevel::High),
+            ("日常", PriorityLevel::Medium),
+            ("可选", PriorityLevel::Low),
+        ] {
+            self.create_day_lane_with_tier(date, name, DayLaneType::Focus, tier)?;
+        }
+        let lanes = self.get_lanes_for_date(date)?;
+        if let Ok(medium_lane) = self.lane_id_for_priority_tier(&lanes, PriorityLevel::Medium) {
+            self.populate_lane_with_actionable_tasks(&medium_lane)?;
+        }
 
         self.set_setting(&format!("carry_over_{date}"), "0")?;
         Ok(())
