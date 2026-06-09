@@ -245,4 +245,4 @@
 - **侧栏/项目**：`PROJECT_ICONS` 改 lucide key + `ProjectIcon`；项目设置菜单（优先级/色/图标）；DB emoji→key 迁移；侧栏项目行布局与色点+线条 icon 指示
 - **布局**：竖列顶部留白与列间距 token 调整；修复项目页无限重渲染黑屏
 
-**Commit:** (pending)
+**Commit:** `336cc34`
