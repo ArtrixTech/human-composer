@@ -2,6 +2,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 
 import type { DayLaneSnapshot, TaskDependency } from "../../types";
 import { useAppStore } from "../../store/appStore";
+import { buildFocusLaneColorIndex } from "./laneColors";
 import { LaneRow } from "./LaneRow";
 import { sortLanesForDisplay } from "./runwayTaskUtils";
 
@@ -16,6 +17,13 @@ export function LanesContainer({
   const setAddLaneOpen = useAppStore((s) => s.setAddLaneOpen);
   const sortedLanes = sortLanesForDisplay(lanes);
   const laneSortIds = sortedLanes.map((l) => `lane-${l.lane.id}`);
+  const focusColorIndex = buildFocusLaneColorIndex(
+    sortedLanes.map((l) => ({
+      id: l.lane.id,
+      laneType: l.lane.laneType,
+      sortOrder: l.lane.sortOrder,
+    })),
+  );
 
   if (lanes.length === 0) {
     return (
@@ -32,7 +40,12 @@ export function LanesContainer({
     <section className="lanes-container">
       <SortableContext items={laneSortIds} strategy={verticalListSortingStrategy}>
         {sortedLanes.map((lane) => (
-          <LaneRow key={lane.lane.id} laneSnapshot={lane} dependencies={dependencies} />
+          <LaneRow
+            key={lane.lane.id}
+            laneSnapshot={lane}
+            dependencies={dependencies}
+            focusColorIndex={focusColorIndex.get(lane.lane.id) ?? null}
+          />
         ))}
       </SortableContext>
     </section>

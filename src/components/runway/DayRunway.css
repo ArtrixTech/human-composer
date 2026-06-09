@@ -216,6 +216,25 @@
   transform: rotate(180deg);
 }
 
+.runway-header__lane-colors {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.runway-header__lane-colors--on {
+  color: var(--accent);
+  background: var(--accent-muted);
+  border-color: transparent;
+}
+
 .runway-header__add-lane {
   padding: 3px 8px;
   border-radius: var(--radius-sm);
@@ -250,9 +269,9 @@
 /* ── Lane section (flat group) ────────────────────────────────────────── */
 
 .lane-section {
-  border-left: 2px solid var(--lane-focus-accent);
+  border-left: 2px solid var(--lane-accent, var(--lane-focus-accent));
   padding-left: 12px;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, border-color 0.2s;
 }
 
 .lane-section--watch {
@@ -305,6 +324,18 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+
+.lane-section__color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--lane-accent, var(--lane-focus-accent));
+  flex-shrink: 0;
+}
+
+.lane-section--colored .lane-section__stats {
+  color: var(--lane-accent, var(--text-tertiary));
 }
 
 .lane-section__name {
@@ -494,6 +525,11 @@
 .task-card--active {
   background: var(--surface-card-active);
   border-color: var(--border-default);
+}
+
+.lane-section--colored .task-card--active {
+  border-color: var(--lane-accent);
+  box-shadow: 0 0 0 1px var(--lane-accent-muted);
 }
 
 .task-card--claimable {

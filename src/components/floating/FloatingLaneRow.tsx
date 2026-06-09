@@ -1,6 +1,8 @@
 import { Bot, Check, Clock } from "lucide-react";
 
 import type { DayLaneSnapshot, RecommendedTask, TodayTaskContext } from "../../types";
+import { useAppStore } from "../../store/appStore";
+import { laneColorStyle } from "../runway/laneColors";
 import {
   findLaneClaimableOptions,
   getLaneState,
@@ -25,6 +27,7 @@ export interface FloatingLaneRowProps {
   onDelegate: (ctx: TodayTaskContext, laneId: string) => void;
   onMarkExternalDone: (ctx: TodayTaskContext) => void;
   onReview: () => void;
+  focusColorIndex?: number | null;
 }
 
 export function FloatingLaneRow({
@@ -37,16 +40,22 @@ export function FloatingLaneRow({
   onDelegate,
   onMarkExternalDone,
   onReview,
+  focusColorIndex = null,
 }: FloatingLaneRowProps) {
+  const laneColorsEnabled = useAppStore((s) => s.laneColorsEnabled);
   const { state, task } = getLaneState(laneSnapshot);
   const claimableOptions =
     state === "claimable" ? findLaneClaimableOptions(laneSnapshot, recommendations) : [];
   const isWatch = laneSnapshot.lane.laneType === "watch";
   const laneId = laneSnapshot.lane.id;
 
+  const colorStyle = laneColorStyle(laneSnapshot.lane.laneType, focusColorIndex, laneColorsEnabled);
+  const hasLaneColor = Boolean(colorStyle);
+
   return (
     <section
-      className={`floating__lane-row floating__lane-row--${variant} floating__lane-row--${isWatch ? "watch" : "focus"} floating__lane-row--${state}`}
+      style={colorStyle}
+      className={`floating__lane-row floating__lane-row--${variant} floating__lane-row--${isWatch ? "watch" : "focus"} floating__lane-row--${state}${hasLaneColor ? " floating__lane-row--colored" : ""}`}
     >
       <div className="floating__lane-row-main">
         <span className="floating__lane-row-name">{laneSnapshot.lane.name}</span>

@@ -7,6 +7,7 @@ import type { Branch, BranchSuggestion, DayRunwaySnapshot, TodayTaskContext } fr
 import * as api from "../../api/tauri";
 import { formatMinutesTotal } from "../runway/taskBlockUtils";
 import { ExternalTaskDialog } from "../runway/ExternalTaskDialog";
+import { buildFocusLaneColorIndex } from "../runway/laneColors";
 import { sortLanesForDisplay } from "../runway/runwayTaskUtils";
 import { FloatingLaneRow } from "./FloatingLaneRow";
 import { FLOATING_WIDTH } from "./floatingSize";
@@ -48,6 +49,13 @@ export function FloatingWidget() {
   const contentRef = useRef<HTMLDivElement>(null);
 
   const lanes = sortLanesForDisplay(snapshot?.lanes ?? []);
+  const focusColorIndex = buildFocusLaneColorIndex(
+    lanes.map((l) => ({
+      id: l.lane.id,
+      laneType: l.lane.laneType,
+      sortOrder: l.lane.sortOrder,
+    })),
+  );
   const laneCount = lanes.length;
   const recommendations = snapshot?.recommendations ?? [];
 
@@ -237,6 +245,7 @@ export function FloatingWidget() {
                   key={lane.lane.id}
                   laneSnapshot={lane}
                   variant="compact"
+                  focusColorIndex={focusColorIndex.get(lane.lane.id) ?? null}
                   {...laneRowProps}
                 />
               ))}
@@ -288,6 +297,7 @@ export function FloatingWidget() {
                   key={lane.lane.id}
                   laneSnapshot={lane}
                   variant="comfortable"
+                  focusColorIndex={focusColorIndex.get(lane.lane.id) ?? null}
                   {...laneRowProps}
                 />
               ))}

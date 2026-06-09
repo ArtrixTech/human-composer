@@ -1,4 +1,4 @@
-import { Check, CheckCircle2, ChevronDown, Clock, Play } from "lucide-react";
+import { Check, CheckCircle2, ChevronDown, Clock, Palette, Play } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import type { DayRunwaySnapshot } from "../../types";
@@ -23,6 +23,8 @@ export function RunwayHeader({
   const completeTask = useAppStore((s) => s.completeTask);
   const postponeTask = useAppStore((s) => s.postponeTask);
   const completeExternal = useAppStore((s) => s.completeExternal);
+  const laneColorsEnabled = useAppStore((s) => s.laneColorsEnabled);
+  const toggleLaneColors = useAppStore((s) => s.toggleLaneColors);
   const reviewExternal = useAppStore((s) => s.reviewExternal);
 
   const [showCompleted, setShowCompleted] = useState(false);
@@ -182,6 +184,15 @@ export function RunwayHeader({
               />
             </button>
           )}
+          <button
+            type="button"
+            className={`runway-header__lane-colors${laneColorsEnabled ? " runway-header__lane-colors--on" : ""}`}
+            onClick={toggleLaneColors}
+            title={laneColorsEnabled ? "关闭泳道配色" : "开启泳道配色"}
+            aria-pressed={laneColorsEnabled}
+          >
+            <Palette size={12} />
+          </button>
           <button type="button" className="runway-header__add-lane" onClick={onAddLane}>
             + 泳道
           </button>

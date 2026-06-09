@@ -1,7 +1,7 @@
 .floating-shell {
   box-sizing: border-box;
   width: 100%;
-  height: auto;
+  height: 100%;
   overflow: hidden;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
@@ -82,7 +82,7 @@
   justify-content: space-between;
   gap: 6px;
   border-bottom: 1px solid var(--border-subtle);
-  border-left: 2px solid var(--lane-focus-accent);
+  border-left: 2px solid var(--lane-accent, var(--lane-focus-accent));
   flex-shrink: 0;
 }
 

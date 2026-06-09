@@ -13,6 +13,10 @@ import type {
   TodayActionContext,
 } from "../types";
 import { useToastStore } from "./toastStore";
+import {
+  readLaneColorsEnabled,
+  writeLaneColorsEnabled,
+} from "../components/runway/laneColors";
 import { findFirstClaimable, isClaimCandidate } from "../components/runway/runwayTaskUtils";
 
 interface AppStore {
@@ -33,6 +37,7 @@ interface AppStore {
   recommendPrompt: RecommendedAction[] | null;
   topRecommendationId: string | null;
   addLaneOpen: boolean;
+  laneColorsEnabled: boolean;
 
   initialize: () => Promise<void>;
   selectTodayView: () => Promise<void>;
@@ -47,6 +52,7 @@ interface AppStore {
   toggleSidebar: () => void;
   toggleInbox: () => void;
   toggleHideDone: () => void;
+  toggleLaneColors: () => void;
   selectTask: (taskId: string | null) => void;
   setDetailOpen: (open: boolean) => void;
   setCommandOpen: (open: boolean) => void;
@@ -126,6 +132,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   recommendPrompt: null,
   topRecommendationId: null,
   addLaneOpen: false,
+  laneColorsEnabled: readLaneColorsEnabled(),
 
   initialize: async () => {
     set({ loading: true, error: null });
@@ -278,6 +285,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   toggleInbox: () => set((s) => ({ inboxOpen: !s.inboxOpen })),
   toggleHideDone: () => set((s) => ({ hideDoneTasks: !s.hideDoneTasks })),
+  toggleLaneColors: () =>
+    set((s) => {
+      const laneColorsEnabled = !s.laneColorsEnabled;
+      writeLaneColorsEnabled(laneColorsEnabled);
+      return { laneColorsEnabled };
+    }),
   selectTask: (taskId) => set({ selectedTaskId: taskId, detailOpen: taskId !== null }),
   setDetailOpen: (open) =>
     set({ detailOpen: open, selectedTaskId: open ? get().selectedTaskId : null }),

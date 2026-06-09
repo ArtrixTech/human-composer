@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import type { DayLaneSnapshot, TaskDependency } from "../../types";
 import { useAppStore } from "../../store/appStore";
+import { laneColorStyle } from "./laneColors";
 import { LaneTrack } from "./LaneTrack";
 import { partitionLaneTasks } from "./runwayTaskUtils";
 
@@ -14,12 +15,15 @@ const VISIBLE_CAP = 7;
 export function LaneRow({
   laneSnapshot,
   dependencies = [],
+  focusColorIndex = null,
 }: {
   laneSnapshot: DayLaneSnapshot;
   dependencies?: TaskDependency[];
+  focusColorIndex?: number | null;
 }) {
   const closeLane = useAppStore((s) => s.closeLane);
   const renameLane = useAppStore((s) => s.renameLane);
+  const laneColorsEnabled = useAppStore((s) => s.laneColorsEnabled);
   const [collapsed, setCollapsed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(laneSnapshot.lane.name);
@@ -79,16 +83,23 @@ export function LaneRow({
     .filter(Boolean)
     .join(" · ");
 
+  const colorStyle = laneColorStyle(
+    laneSnapshot.lane.laneType,
+    focusColorIndex,
+    laneColorsEnabled,
+  );
   const sectionStyle = {
     transform: CSS.Transform.toString(transform),
     transition,
+    ...colorStyle,
   };
+  const hasLaneColor = Boolean(colorStyle);
 
   return (
     <section
       ref={setSortableRef}
       style={sectionStyle}
-      className={`lane-section lane-section--${laneSnapshot.lane.laneType}${isOver ? " lane-section--over" : ""}${isDragging ? " lane-section--dragging" : ""}`}
+      className={`lane-section lane-section--${laneSnapshot.lane.laneType}${hasLaneColor ? " lane-section--colored" : ""}${isOver ? " lane-section--over" : ""}${isDragging ? " lane-section--dragging" : ""}`}
     >
       <div className="lane-section__header">
         <button
@@ -118,6 +129,7 @@ export function LaneRow({
           />
         ) : (
           <div className="lane-section__name-wrap">
+            {hasLaneColor && <span className="lane-section__color-dot" aria-hidden />}
             <button
               type="button"
               className="lane-section__name"
