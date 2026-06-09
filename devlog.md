@@ -186,4 +186,4 @@
 - **支线操作修复**：移除 `window.confirm`（Tauri WebView 无效），归档/删除点击即执行；归档 Toast 支持 Undo（`unarchiveBranch`）
 - **重命名计划**：新增 `.cursor/plans/支线任务概念重命名_2e0b640e.plan.md`，决策 **A+α**（UI「目标-行动」、代码 `Outcome`/`Action`，DB/IPC 保持 branch/task 别名）
 
-**Commit:** `9eb1966`
+**Commit:** `c0a127b`
