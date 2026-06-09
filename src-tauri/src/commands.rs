@@ -2,11 +2,12 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::auto_assign::suggest_outcome;
 use crate::db::Database;
+use crate::llm::{get_llm_config, set_llm_config, suggest_outcome_with_llm, test_llm_connection};
 use crate::models::{
     AppSnapshot, Branch, BranchSuggestion, CompleteTaskResult, CreateTaskResult, DayLane,
-    DayLaneType, DayRunwaySnapshot, ProjectGraph, ProjectSummary, Task, TaskStatus, TodaySnapshot,
+    DayLaneType, DayRunwaySnapshot, LlmConfig, PriorityLevel, ProjectGraph, ProjectSummary, Task,
+    TaskStatus, TodaySnapshot,
 };
 use crate::undo::{UndoAction, UndoStack};
 use crate::runway::local_date_string;
@@ -92,12 +93,17 @@ pub fn create_day_lane(
     date: Option<String>,
     name: String,
     lane_type: String,
+    priority_tier: Option<String>,
 ) -> Result<DayLane, String> {
     let date = date.unwrap_or_else(local_date_string);
     let lt = DayLaneType::from_str(&lane_type);
+    let tier = priority_tier
+        .map(|p| PriorityLevel::from_str(&p))
+        .unwrap_or(PriorityLevel::Medium);
     let lane = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.create_day_lane(&date, &name, lt).map_err(|e| e.to_string())?
+        db.create_day_lane_with_tier(&date, &name, lt, tier)
+            .map_err(|e| e.to_string())?
     };
     emit_runway_only(&app, &state)?;
     Ok(lane)
@@ -498,14 +504,14 @@ pub fn create_branch(
 }
 
 #[tauri::command]
-pub fn create_task(
+pub async fn create_task(
     app: AppHandle,
     state: State<'_, AppState>,
     project_id: String,
     branch_id: Option<String>,
     title: String,
 ) -> Result<CreateTaskResult, String> {
-    let (task, branch_suggestion) = {
+    let (task, inbox_ctx) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
 
         let task_id = if let Some(bid) = &branch_id {
@@ -526,14 +532,29 @@ pub fn create_task(
             task_id: task_id.clone(),
         });
 
-        let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
-        let branch_suggestion = if branch_id.is_none() {
-            suggest_outcome(&title, &graph.branches)
+        let inbox_ctx = if branch_id.is_none() {
+            let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
+            let llm_config = get_llm_config(&db)?;
+            Some((
+                graph.project.name,
+                graph.branches,
+                llm_config,
+            ))
         } else {
             None
         };
 
-        (task, branch_suggestion)
+        if branch_id.is_some() {
+            let _ = db.auto_slot_action_to_lane(&task_id);
+        }
+
+        (task, inbox_ctx)
+    };
+
+    let branch_suggestion = if let Some((project_name, branches, llm_config)) = inbox_ctx {
+        suggest_outcome_with_llm(&llm_config, &title, &project_name, &branches).await
+    } else {
+        None
     };
 
     emit_snapshot(&app, &state, &project_id)?;
@@ -557,6 +578,7 @@ pub fn assign_task_to_branch(
         let task = db
             .assign_task_to_branch(&task_id, &branch_id)
             .map_err(|e| e.to_string())?;
+        let _ = db.auto_slot_action_to_lane(&task_id);
         (project_id, task)
     };
     emit_snapshot(&app, &state, &project_id)?;
@@ -760,11 +782,12 @@ pub fn set_task_priority(
     state: State<'_, AppState>,
     project_id: String,
     task_id: String,
-    priority: Option<i32>,
+    priority: String,
 ) -> Result<Task, String> {
+    let level = PriorityLevel::from_str(&priority);
     let task = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.set_task_priority(&task_id, priority)
+        db.set_task_priority(&task_id, level)
             .map_err(|e| e.to_string())?
     };
     emit_snapshot(&app, &state, &project_id)?;
@@ -832,14 +855,37 @@ pub fn reorder_branch_tasks(
 }
 
 #[tauri::command]
-pub fn suggest_branch_for_task(
+pub async fn suggest_branch_for_task(
     state: State<'_, AppState>,
     project_id: String,
     title: String,
 ) -> Result<Option<BranchSuggestion>, String> {
+    let (project_name, branches, llm_config) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
+        let llm_config = get_llm_config(&db)?;
+        (graph.project.name, graph.branches, llm_config)
+    };
+    Ok(
+        suggest_outcome_with_llm(&llm_config, &title, &project_name, &branches).await,
+    )
+}
+
+#[tauri::command]
+pub fn get_llm_config_cmd(state: State<'_, AppState>) -> Result<LlmConfig, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let graph = db.get_project_graph(&project_id).map_err(|e| e.to_string())?;
-    Ok(suggest_outcome(&title, &graph.branches))
+    get_llm_config(&db)
+}
+
+#[tauri::command]
+pub fn set_llm_config_cmd(state: State<'_, AppState>, config: LlmConfig) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    set_llm_config(&db, &config)
+}
+
+#[tauri::command]
+pub async fn test_llm_connection_cmd(config: LlmConfig) -> Result<String, String> {
+    test_llm_connection(&config).await
 }
 
 #[tauri::command]

@@ -194,3 +194,20 @@
 .sidebar__delete:hover {
   background: rgba(248, 113, 113, 0.15);
 }
+
+.sidebar__ai-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.sidebar__ai-settings:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}

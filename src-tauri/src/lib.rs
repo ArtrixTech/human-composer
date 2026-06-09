@@ -1,6 +1,7 @@
 mod auto_assign;
 mod commands;
 mod db;
+mod llm;
 mod models;
 mod recommend;
 mod sources;
@@ -173,6 +174,9 @@ pub fn run() {
             commands::show_floating_notice,
             commands::get_floating_notice_message,
             commands::toggle_floating_expanded,
+            commands::get_llm_config_cmd,
+            commands::set_llm_config_cmd,
+            commands::test_llm_connection_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

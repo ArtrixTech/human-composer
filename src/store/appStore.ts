@@ -59,7 +59,7 @@ interface AppStore {
   setAddLaneOpen: (open: boolean) => void;
   dismissRecommend: () => void;
 
-  createLane: (name: string, laneType: DayLaneType) => Promise<void>;
+  createLane: (name: string, laneType: DayLaneType, priorityTier?: import("../types").PriorityLevel) => Promise<void>;
   closeLane: (laneId: string) => Promise<void>;
   renameLane: (laneId: string, name: string) => Promise<void>;
   assignToLane: (taskId: string, laneId: string, position?: number) => Promise<void>;
@@ -92,7 +92,7 @@ interface AppStore {
   unarchiveBranch: (branchId: string) => Promise<void>;
   deleteBranch: (branchId: string) => Promise<void>;
   reorderBranches: (branchIds: string[]) => Promise<void>;
-  setTaskPriority: (taskId: string, priority: number | null) => Promise<void>;
+  setTaskPriority: (taskId: string, priority: import("../types").PriorityLevel) => Promise<void>;
   archiveTask: (taskId: string, projectId?: string) => Promise<void>;
   unarchiveTask: (taskId: string, projectId?: string) => Promise<void>;
   reorderBranchTasks: (branchId: string, taskIds: string[]) => Promise<void>;
@@ -298,8 +298,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setAddLaneOpen: (open) => set({ addLaneOpen: open }),
   dismissRecommend: () => set({ recommendPrompt: null }),
 
-  createLane: async (name, laneType) => {
-    await api.createDayLane(name, laneType);
+  createLane: async (name, laneType, priorityTier) => {
+    await api.createDayLane(name, laneType, undefined, priorityTier);
     await get().refreshRunway();
     useToastStore.getState().push({ message: `已创建泳道「${name}」` });
   },
@@ -409,14 +409,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
       undo: () => api.deleteTask(projectId, result.action.id).then(() => get().refreshAll()),
     });
     if (result.outcomeSuggestion) {
-      useToastStore.getState().push({
-        message: `建议分配到「${result.outcomeSuggestion.branchName}」`,
-        actionLabel: "确认",
-        onAction: () =>
-          api
-            .assignTaskToBranch(result.action.id, result.outcomeSuggestion!.branchId)
-            .then(() => get().refreshAll()),
-      });
+      const suggestion = result.outcomeSuggestion;
+      if (suggestion.confidence >= 0.8 && suggestion.branchName) {
+        await api.assignTaskToBranch(result.action.id, suggestion.branchId);
+        await get().refreshAll();
+        useToastStore.getState().push({
+          message: `已自动分配到「${suggestion.branchName}」`,
+        });
+      } else {
+        useToastStore.getState().push({
+          message: `建议分配到「${suggestion.branchName}」`,
+          actionLabel: "确认",
+          onAction: () =>
+            api.assignTaskToBranch(result.action.id, suggestion.branchId).then(() => get().refreshAll()),
+        });
+      }
     }
   },
 

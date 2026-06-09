@@ -9,7 +9,9 @@ import type {
   DayLaneType,
   DayRunwaySnapshot,
   Outcome,
+  LlmConfig,
   OutcomeSuggestion,
+  PriorityLevel,
   ProjectGraph,
   ProjectSummary,
   TodaySnapshot,
@@ -71,8 +73,14 @@ export function createDayLane(
   name: string,
   laneType: DayLaneType,
   date?: string,
+  priorityTier?: PriorityLevel,
 ): Promise<DayLane> {
-  return invoke("create_day_lane", { date: date ?? null, name, laneType });
+  return invoke("create_day_lane", {
+    date: date ?? null,
+    name,
+    laneType,
+    priorityTier: priorityTier ?? null,
+  });
 }
 
 export function closeDayLane(laneId: string): Promise<void> {
@@ -315,7 +323,7 @@ export const reorderBranches = reorderOutcomes;
 export function setActionPriority(
   projectId: string,
   actionId: string,
-  priority: number | null,
+  priority: import("../types").PriorityLevel,
 ): Promise<Action> {
   return invoke("set_task_priority", { projectId, taskId: actionId, priority });
 }
@@ -391,4 +399,16 @@ export function toggleFloatingExpanded(): Promise<void> {
 
 export function focusFloatingForQuickAdd(): Promise<void> {
   return invoke("focus_floating_for_quick_add");
+}
+
+export function getLlmConfig(): Promise<LlmConfig> {
+  return invoke("get_llm_config_cmd");
+}
+
+export function setLlmConfig(config: LlmConfig): Promise<void> {
+  return invoke("set_llm_config_cmd", { config });
+}
+
+export function testLlmConnection(config: LlmConfig): Promise<string> {
+  return invoke("test_llm_connection_cmd", { config });
 }

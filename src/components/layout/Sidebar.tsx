@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, FolderKanban, Plus, Trash2 } from "lucide-react";
+import { Bot, CalendarDays, ChevronLeft, ChevronRight, FolderKanban, Plus, Trash2 } from "lucide-react";
 
 import { useAppStore } from "../../store/appStore";
 import "./Sidebar.css";
@@ -110,6 +110,14 @@ export function Sidebar() {
 
       {!collapsed && (
         <div className="sidebar__footer">
+          <button
+            type="button"
+            className="sidebar__ai-settings"
+            onClick={() => window.dispatchEvent(new Event("open-ai-settings"))}
+          >
+            <Bot size={14} />
+            <span>AI 设置</span>
+          </button>
           {adding ? (
             <div className="sidebar__add-form">
               <input

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { CommandPalette } from "../command/CommandPalette";
 import { DetailPanel } from "../detail/DetailPanel";
@@ -9,6 +9,7 @@ import { ToastContainer } from "../toast/ToastContainer";
 import { DayRunway } from "../runway/DayRunway";
 import { ProjectHeader } from "./ProjectHeader";
 import { Sidebar } from "./Sidebar";
+import { AiSettingsPanel } from "../settings/AiSettingsPanel";
 import { TitleBar } from "./TitleBar";
 import { useGraphSync } from "../../hooks/useGraphSync";
 import { useAppStore } from "../../store/appStore";
@@ -20,8 +21,15 @@ export function AppShell() {
   const loading = useAppStore((s) => s.loading);
   const currentView = useAppStore((s) => s.currentView);
   const graph = useAppStore((s) => s.graph);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
 
   useGraphSync();
+
+  useEffect(() => {
+    const onOpen = () => setAiSettingsOpen(true);
+    window.addEventListener("open-ai-settings", onOpen);
+    return () => window.removeEventListener("open-ai-settings", onOpen);
+  }, []);
 
   useEffect(() => {
     void initialize();
@@ -53,6 +61,7 @@ export function AppShell() {
       <ToastContainer />
       <RecommendPrompt />
       <CommandPalette />
+      {aiSettingsOpen && <AiSettingsPanel onClose={() => setAiSettingsOpen(false)} />}
     </div>
   );
 }
