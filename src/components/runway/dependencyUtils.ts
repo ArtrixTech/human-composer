@@ -8,9 +8,9 @@ export function buildBlockerMap(
   for (const dep of dependencies) {
     if (!tasksById.has(dep.dependsOnTaskId)) continue;
     const upstream = tasksById.get(dep.dependsOnTaskId)!;
-    if (upstream.task.status === "done") continue;
+    if (upstream.action.status === "done") continue;
     const list = blockers.get(dep.taskId) ?? [];
-    list.push(upstream.task.title);
+    list.push(upstream.action.title);
     blockers.set(dep.taskId, list);
   }
   return blockers;

@@ -14,7 +14,7 @@ export function ExternalTaskDialog({
   onClose: () => void;
 }) {
   const startExternal = useAppStore((s) => s.startExternal);
-  const defaultMinutes = ctx.task.estimatedMinutes ?? 30;
+  const defaultMinutes = ctx.action.estimatedMinutes ?? 30;
   const [minutes, setMinutes] = useState(String(defaultMinutes));
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -27,7 +27,7 @@ export function ExternalTaskDialog({
     setSubmitting(true);
     try {
       await startExternal(
-        ctx.task.id,
+        ctx.action.id,
         ctx.projectId,
         laneId,
         parsedMinutes,
@@ -56,12 +56,12 @@ export function ExternalTaskDialog({
           <Bot size={18} className="external-dialog__icon" />
           <div>
             <h3 id="external-dialog-title">委派外部执行</h3>
-            <p className="external-dialog__subtitle">{ctx.task.title}</p>
+            <p className="external-dialog__subtitle">{ctx.action.title}</p>
           </div>
         </div>
 
         <p className="external-dialog__hint">
-          任务将移入等待泳道，由 Agent / CI / 他人执行。完成后会提醒你审核。
+          行动将移入等待泳道，由 Agent / CI / 他人执行。完成后会提醒你审核。
         </p>
 
         <label className="external-dialog__field">

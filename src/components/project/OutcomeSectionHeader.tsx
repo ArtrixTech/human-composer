@@ -5,9 +5,9 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Branch, Task } from "../../types";
 import { useAppStore } from "../../store/appStore";
-import "./BranchSectionHeader.css";
+import "./OutcomeSectionHeader.css";
 
-export function BranchSectionHeader({
+export function OutcomeSectionHeader({
   branch,
   tasks,
   collapsed,
@@ -72,7 +72,7 @@ export function BranchSectionHeader({
       <button
         type="button"
         className="branch-header__drag"
-        aria-label="拖拽调整支线顺序"
+        aria-label="拖拽调整目标顺序"
         {...attributes}
         {...listeners}
       >
@@ -109,7 +109,7 @@ export function BranchSectionHeader({
         <button
           type="button"
           className="branch-header__menu-btn"
-          aria-label="支线菜单"
+          aria-label="目标菜单"
           onClick={() => setMenuOpen((o) => !o)}
         >
           <MoreVertical size={14} />
@@ -137,3 +137,5 @@ export function BranchSectionHeader({
     </div>
   );
 }
+/** @deprecated Use OutcomeSectionHeader */
+export const BranchSectionHeader = OutcomeSectionHeader;

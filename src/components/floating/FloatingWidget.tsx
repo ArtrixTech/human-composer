@@ -38,23 +38,23 @@ export function FloatingWidget() {
   const [phase, setPhase] = useState<FooterPhase>("typing");
   const [pickGroups, setPickGroups] = useState<PickProjectGroup[]>([]);
   const [createProjectId, setCreateProjectId] = useState<string | null>(null);
-  const [branchSuggestion, setBranchSuggestion] = useState<BranchSuggestion | null>(null);
+  const [outcomeSuggestion, setBranchSuggestion] = useState<BranchSuggestion | null>(null);
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [delegateTarget, setDelegateTarget] = useState<{
     ctx: TodayTaskContext;
     laneId: string;
   } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const lanes = sortLanesForDisplay(snapshot?.lanes ?? []);
   const laneCount = lanes.length;
   const recommendations = snapshot?.recommendations ?? [];
 
   const syncWindowSize = async () => {
-    const el = shellRef.current;
+    const el = contentRef.current;
     if (!el) return;
-    const height = Math.ceil(el.scrollHeight);
+    const height = Math.ceil(el.getBoundingClientRect().height);
     if (height <= 0) return;
     await getCurrentWindow().setSize(new LogicalSize(FLOATING_WIDTH, height));
   };
@@ -125,13 +125,13 @@ export function FloatingWidget() {
     : null;
 
   const complete = async (ctx: TodayTaskContext) => {
-    await api.completeTask(ctx.task.id, ctx.projectId);
+    await api.completeTask(ctx.action.id, ctx.projectId);
     setSnapshot(await api.getDayRunwaySnapshot());
     showFeedback("已完成");
   };
 
   const postpone = async (ctx: TodayTaskContext, laneId: string) => {
-    await api.postponeTask(ctx.task.id, laneId, ctx.projectId);
+    await api.postponeTask(ctx.action.id, laneId, ctx.projectId);
     setSnapshot(await api.getDayRunwaySnapshot());
     showFeedback("已标记稍后");
   };
@@ -150,7 +150,7 @@ export function FloatingWidget() {
   };
 
   const markExternalDone = async (ctx: TodayTaskContext) => {
-    await api.completeExternalTask(ctx.task.id, ctx.projectId);
+    await api.completeExternalTask(ctx.action.id, ctx.projectId);
     setSnapshot(await api.getDayRunwaySnapshot());
   };
 
@@ -168,17 +168,17 @@ export function FloatingWidget() {
     const groups: PickProjectGroup[] = [];
     for (const project of projects) {
       const graph = await api.getProjectGraph(project.id);
-      if (graph.branches.length === 0) continue;
+      if (graph.outcomes.length === 0) continue;
       groups.push({
         projectId: project.id,
         projectName: project.name,
-        branches: graph.branches,
+        branches: graph.outcomes,
       });
     }
     setPickGroups(groups);
     setCreateProjectId(projectId);
-    setBranchSuggestion(result.branchSuggestion ?? null);
-    setPendingTaskId(result.task.id);
+    setBranchSuggestion(result.outcomeSuggestion ?? null);
+    setPendingTaskId(result.action.id);
     setPhase("picking");
     void resize(true);
   };
@@ -223,9 +223,9 @@ export function FloatingWidget() {
 
   return (
     <>
-      <div ref={shellRef} className="floating-shell">
+      <div className="floating-shell">
         {!expanded ? (
-          <div className="floating floating--collapsed">
+          <div ref={contentRef} className="floating floating--collapsed">
             <div
               className="floating__collapsed-lanes"
               data-tauri-drag-region="deep"
@@ -255,7 +255,7 @@ export function FloatingWidget() {
             </button>
           </div>
         ) : (
-          <div className="floating floating--expanded">
+          <div ref={contentRef} className="floating floating--expanded">
             <header className="floating__header">
               <div
                 className="floating__header-meta floating__drag-zone"
@@ -299,7 +299,7 @@ export function FloatingWidget() {
             <footer className="floating__footer">
               {phase === "picking" ? (
                 <div className="floating__pick">
-                  <p className="floating__pick-label">选择支线</p>
+                  <p className="floating__pick-label">选择目标</p>
                   <div className="floating__pick-groups">
                     {pickGroups.map((group) => (
                       <section key={group.projectId} className="floating__pick-group">
@@ -317,7 +317,7 @@ export function FloatingWidget() {
                               key={b.id}
                               type="button"
                               className={
-                                branchSuggestion?.branchId === b.id &&
+                                outcomeSuggestion?.branchId === b.id &&
                                 group.projectId === createProjectId
                                   ? "floating__pick-chip floating__pick-chip--suggested"
                                   : "floating__pick-chip"

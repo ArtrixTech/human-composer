@@ -187,3 +187,12 @@
 - **重命名计划**：新增 `.cursor/plans/支线任务概念重命名_2e0b640e.plan.md`，决策 **A+α**（UI「目标-行动」、代码 `Outcome`/`Action`，DB/IPC 保持 branch/task 别名）
 
 **Commit:** `c0a127b`
+
+## 2026-06-09 — 目标/行动概念重命名 Outcome/Action (prev: `1b97fec`)
+
+- **文档**：`AGENTS.md` 新增 Glossary；产品设计 plan 修正 Outcome≠泳道
+- **TS**：`Outcome`/`Action` 主类型 + wire 解析器；API/Store 新函数名，JSON 仍 `branches`/`tasks`
+- **Rust**：`Outcome`/`Action` type alias；`recommend`/`auto_assign` 内部改名
+- **UI**：全局「目标-行动」文案；`OutcomeColumnHeader`/`ActionNode` 组件重命名；DetailPanel inline 重命名目标
+
+**Commit:** _(pending)_

@@ -1,6 +1,9 @@
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+
 import type { DayLaneSnapshot, TaskDependency } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { LaneRow } from "./LaneRow";
+import { sortLanesForDisplay } from "./runwayTaskUtils";
 
 export function LanesContainer({
   lanes,
@@ -11,6 +14,8 @@ export function LanesContainer({
   suggestedClaimTaskId?: string | null;
 }) {
   const setAddLaneOpen = useAppStore((s) => s.setAddLaneOpen);
+  const sortedLanes = sortLanesForDisplay(lanes);
+  const laneSortIds = sortedLanes.map((l) => `lane-${l.lane.id}`);
 
   if (lanes.length === 0) {
     return (
@@ -25,9 +30,11 @@ export function LanesContainer({
 
   return (
     <section className="lanes-container">
-      {lanes.map((lane) => (
-        <LaneRow key={lane.lane.id} laneSnapshot={lane} dependencies={dependencies} />
-      ))}
+      <SortableContext items={laneSortIds} strategy={verticalListSortingStrategy}>
+        {sortedLanes.map((lane) => (
+          <LaneRow key={lane.lane.id} laneSnapshot={lane} dependencies={dependencies} />
+        ))}
+      </SortableContext>
     </section>
   );
 }

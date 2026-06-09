@@ -24,49 +24,66 @@ export function DetailPanel() {
   const deleteBranch = useAppStore((s) => s.deleteBranch);
   const setTaskPriority = useAppStore((s) => s.setTaskPriority);
 
-  const task = graph?.tasks.find((t) => t.id === selectedTaskId) ?? null;
-  const branch = graph?.branches.find((b) => b.id === task?.branchId);
+  const action = graph?.actions.find((t) => t.id === selectedTaskId) ?? null;
+  const outcome = graph?.outcomes.find((b) => b.id === action?.branchId);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [estimate, setEstimate] = useState("30");
+  const [outcomeNameEditing, setOutcomeNameEditing] = useState(false);
+  const [outcomeName, setOutcomeName] = useState("");
 
   useEffect(() => {
-    if (task) {
-      setTitle(task.title);
-      setDescription(task.description);
-      setEstimate(String(task.estimatedMinutes ?? 30));
+    if (action) {
+      setTitle(action.title);
+      setDescription(action.description);
+      setEstimate(String(action.estimatedMinutes ?? 30));
     }
-  }, [task]);
+  }, [action]);
 
-  if (!detailOpen || !task || !activeProjectId) return null;
+  useEffect(() => {
+    if (outcome) setOutcomeName(outcome.name);
+  }, [outcome?.name]);
+
+  if (!detailOpen || !action || !activeProjectId) return null;
 
   const save = async () => {
-    await api.updateTask(activeProjectId, task.id, title, description);
-    await api.setTaskEstimatedMinutes(activeProjectId, task.id, parseInt(estimate, 10) || 30);
+    await api.updateTask(activeProjectId, action.id, title, description);
+    await api.setTaskEstimatedMinutes(activeProjectId, action.id, parseInt(estimate, 10) || 30);
     await refreshAll();
   };
 
   const togglePin = async () => {
-    await api.pinTask(activeProjectId, task.id, !task.pinned);
+    await api.pinTask(activeProjectId, action.id, !action.pinned);
     await refreshAll();
   };
 
-  const removeDep = async (dependsOnTaskId: string) => {
-    await api.removeDependency(task.id, dependsOnTaskId);
+  const commitOutcomeRename = async () => {
+    if (!outcome) return;
+    setOutcomeNameEditing(false);
+    const trimmed = outcomeName.trim();
+    if (trimmed && trimmed !== outcome.name) {
+      await renameBranch(outcome.id, trimmed);
+    } else {
+      setOutcomeName(outcome.name);
+    }
+  };
+
+  const removeDep = async (dependsOnActionId: string) => {
+    await api.removeDependency(action.id, dependsOnActionId);
     await refreshAll();
   };
 
-  const upstream = graph?.dependencies.filter((d) => d.taskId === task.id) ?? [];
-  const downstream = graph?.dependencies.filter((d) => d.dependsOnTaskId === task.id) ?? [];
+  const upstream = graph?.dependencies.filter((d) => d.taskId === action.id) ?? [];
+  const downstream = graph?.dependencies.filter((d) => d.dependsOnTaskId === action.id) ?? [];
 
   return (
     <aside className="detail-panel detail-panel--open">
       <header className="detail-panel__header">
-        <span className="detail-panel__status">{task.status}</span>
+        <span className="detail-panel__status">{action.status}</span>
         <div className="detail-panel__actions">
           <button type="button" onClick={() => void togglePin()} title="置顶">
-            <Pin size={14} className={task.pinned ? "detail-panel__pinned" : ""} />
+            <Pin size={14} className={action.pinned ? "detail-panel__pinned" : ""} />
           </button>
           <button type="button" onClick={() => setDetailOpen(false)} aria-label="关闭">
             <X size={14} />
@@ -75,17 +92,17 @@ export function DetailPanel() {
       </header>
 
       <div className="detail-panel__status-actions">
-        {task.status === "ready" && (
-          <button type="button" onClick={() => void activateTask(task.id, activeProjectId)}>
+        {action.status === "ready" && (
+          <button type="button" onClick={() => void activateTask(action.id, activeProjectId)}>
             <Play size={12} /> 开始
           </button>
         )}
-        {task.status === "active" && (
+        {action.status === "active" && (
           <>
-            <button type="button" onClick={() => void completeTask(task.id, activeProjectId)}>
+            <button type="button" onClick={() => void completeTask(action.id, activeProjectId)}>
               <Check size={12} /> 完成
             </button>
-            <button type="button" onClick={() => void pauseTask(task.id, activeProjectId)}>
+            <button type="button" onClick={() => void pauseTask(action.id, activeProjectId)}>
               <Pause size={12} /> 暂停
             </button>
           </>
@@ -121,10 +138,10 @@ export function DetailPanel() {
       <label className="detail-panel__estimate">
         优先级
         <select
-          value={task.priority ?? ""}
+          value={action.priority ?? ""}
           onChange={(e) => {
             const v = e.target.value;
-            void setTaskPriority(task.id, v === "" ? null : parseInt(v, 10));
+            void setTaskPriority(action.id, v === "" ? null : parseInt(v, 10));
           }}
         >
           <option value="">未设置</option>
@@ -137,49 +154,60 @@ export function DetailPanel() {
       </label>
 
       <div className="detail-panel__meta">
-        {branch && (
+        {outcome && (
           <div className="detail-panel__branch-row">
-            <span>支线: {branch.name}</span>
+            <span>目标: {outcome.name}</span>
             <select
-              value={branch.id}
-              onChange={(e) => void assignInboxTask(task.id, e.target.value)}
+              value={outcome.id}
+              onChange={(e) => void assignInboxTask(action.id, e.target.value)}
             >
-              {graph?.branches.map((b) => (
+              {graph?.outcomes.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
                 </option>
               ))}
             </select>
+            {outcomeNameEditing ? (
+              <input
+                className="detail-panel__outcome-rename"
+                autoFocus
+                value={outcomeName}
+                onChange={(e) => setOutcomeName(e.target.value)}
+                onBlur={() => void commitOutcomeRename()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void commitOutcomeRename();
+                  if (e.key === "Escape") {
+                    setOutcomeName(outcome.name);
+                    setOutcomeNameEditing(false);
+                  }
+                }}
+              />
+            ) : (
+              <button type="button" onClick={() => setOutcomeNameEditing(true)}>
+                重命名目标
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => {
-                const name = window.prompt("重命名支线", branch.name);
-                if (name?.trim()) void renameBranch(branch.id, name.trim());
-              }}
+              className="detail-panel__archive"
+              onClick={() => void archiveBranchStore(outcome.id)}
             >
-              重命名支线
+              归档目标
             </button>
             <button
               type="button"
               className="detail-panel__archive"
-              onClick={() => void archiveBranchStore(branch.id)}
+              onClick={() => void deleteBranch(outcome.id)}
             >
-              归档支线
-            </button>
-            <button
-              type="button"
-              className="detail-panel__archive"
-              onClick={() => void deleteBranch(branch.id)}
-            >
-              删除支线
+              删除目标
             </button>
           </div>
         )}
         <div className="detail-panel__reorder">
-          <button type="button" onClick={() => void reorderTask(task.id, "up")}>
+          <button type="button" onClick={() => void reorderTask(action.id, "up")}>
             <ArrowUp size={12} /> 上移
           </button>
-          <button type="button" onClick={() => void reorderTask(task.id, "down")}>
+          <button type="button" onClick={() => void reorderTask(action.id, "down")}>
             <ArrowDown size={12} /> 下移
           </button>
         </div>
@@ -194,13 +222,13 @@ export function DetailPanel() {
             onChange={(e) => {
               const depId = e.target.value;
               if (!depId) return;
-              void api.addDependency(task.id, depId).then(() => refreshAll());
+              void api.addDependency(action.id, depId).then(() => refreshAll());
               e.target.value = "";
             }}
           >
-            <option value="">选择任务…</option>
-            {graph?.tasks
-              .filter((t) => t.id !== task.id)
+            <option value="">选择行动…</option>
+            {graph?.actions
+              .filter((t) => t.id !== action.id)
               .filter((t) => !upstream.some((d) => d.dependsOnTaskId === t.id))
               .map((t) => (
                 <option key={t.id} value={t.id}>
@@ -211,10 +239,10 @@ export function DetailPanel() {
         </label>
         <div className="detail-panel__dep-list">
           {upstream.length === 0 && downstream.length === 0 && (
-            <p className="detail-panel__dep-empty">在详情中管理跨支线依赖（下方列表）</p>
+            <p className="detail-panel__dep-empty">在详情中管理跨目标依赖（下方列表）</p>
           )}
           {upstream.map((d) => {
-            const dep = graph?.tasks.find((t) => t.id === d.dependsOnTaskId);
+            const dep = graph?.actions.find((t) => t.id === d.dependsOnTaskId);
             return dep ? (
               <div key={d.dependsOnTaskId} className="detail-panel__dep-row">
                 <span>阻塞于: {dep.title}</span>
@@ -225,7 +253,7 @@ export function DetailPanel() {
             ) : null;
           })}
           {downstream.map((d) => {
-            const dep = graph?.tasks.find((t) => t.id === d.taskId);
+            const dep = graph?.actions.find((t) => t.id === d.taskId);
             return dep ? <div key={d.taskId}>阻塞: {dep.title}</div> : null;
           })}
         </div>
@@ -234,14 +262,14 @@ export function DetailPanel() {
       <button
         type="button"
         className="detail-panel__archive-task"
-        onClick={() => void archiveTask(task.id, activeProjectId)}
+        onClick={() => void archiveTask(action.id, activeProjectId)}
       >
-        <Archive size={14} /> 归档任务
+        <Archive size={14} /> 归档行动
       </button>
       <button
         type="button"
         className="detail-panel__delete"
-        onClick={() => void deleteTask(task.id, activeProjectId)}
+        onClick={() => void deleteTask(action.id, activeProjectId)}
       >
         <Trash2 size={14} /> 彻底删除
       </button>

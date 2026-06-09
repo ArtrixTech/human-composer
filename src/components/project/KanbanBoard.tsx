@@ -12,13 +12,13 @@ import { buildKanbanLayout, COLUMN_WIDTH } from "../../layout/kanbanLayout";
 import { useAppStore } from "../../store/appStore";
 import { nextPriority } from "./taskUtils";
 import { BlockingEdge, BlockingEdgeMarker, SequentialEdge } from "../dag/CustomEdges";
-import { AddTaskNode, TaskNode, type TaskNodeData } from "../dag/TaskNode";
-import { BranchColumnHeader } from "./BranchColumnHeader";
+import { ActionNode, AddTaskNode, type ActionNodeData } from "../dag/ActionNode";
+import { OutcomeColumnHeader } from "./OutcomeColumnHeader";
 import "./KanbanBoard.css";
 
 const nodeTypes = {
-  task: TaskNode,
-  branchHeader: BranchColumnHeader,
+  action: ActionNode,
+  outcomeHeader: OutcomeColumnHeader,
   addTask: AddTaskNode,
 };
 
@@ -49,8 +49,8 @@ export function KanbanBoard() {
   const setTaskPriority = useAppStore((s) => s.setTaskPriority);
 
   const sortedBranches = useMemo(
-    () => (graph ? [...graph.branches].sort((a, b) => a.sortOrder - b.sortOrder) : []),
-    [graph?.branches],
+    () => (graph ? [...graph.outcomes].sort((a, b) => a.sortOrder - b.sortOrder) : []),
+    [graph?.outcomes],
   );
 
   const layout = useMemo(() => {
@@ -61,7 +61,7 @@ export function KanbanBoard() {
         metrics: { totalWidth: COLUMN_WIDTH, totalHeight: 400, columnCount: 0 },
       };
     }
-    return buildKanbanLayout(graph.branches, graph.tasks, graph.dependencies, hideDoneTasks);
+    return buildKanbanLayout(graph.outcomes, graph.actions, graph.dependencies, hideDoneTasks);
   }, [graph, hideDoneTasks]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes);
@@ -86,9 +86,9 @@ export function KanbanBoard() {
     if (!graph) return;
 
     const branchTaskCounts = new Map(
-      graph.branches.map((b) => [
+      graph.outcomes.map((b) => [
         b.id,
-        graph.tasks.filter((t) => t.branchId === b.id && t.status !== "inbox").length,
+        graph.actions.filter((t) => t.branchId === b.id && t.status !== "inbox").length,
       ]),
     );
 
@@ -96,8 +96,8 @@ export function KanbanBoard() {
 
     setNodes(
       layout.nodes.map((node) => {
-        if (node.type === "task") {
-          const data = node.data as TaskNodeData;
+        if (node.type === "action") {
+          const data = node.data as ActionNodeData;
           const depCount = graph.dependencies.filter(
             (d) => d.taskId === data.task.id || d.dependsOnTaskId === data.task.id,
           ).length;
@@ -130,7 +130,7 @@ export function KanbanBoard() {
             },
           };
         }
-        if (node.type === "branchHeader") {
+        if (node.type === "outcomeHeader") {
           const branchId = (node.data as { branchId: string }).branchId;
           const colIdx = columnIndexByBranch.get(branchId) ?? 0;
           return {
@@ -203,16 +203,16 @@ export function KanbanBoard() {
     );
   }
 
-  if (graph.branches.length === 0) {
+  if (graph.outcomes.length === 0) {
     return (
       <div className="kanban-empty">
         <h3>开始编排你的项目</h3>
-        <p>创建第一条并行支线来组织任务</p>
+        <p>创建第一个目标来组织行动</p>
         {addingBranch ? (
           <div className="kanban-empty__form">
             <input
               autoFocus
-              placeholder="支线名称"
+              placeholder="可衡量的目标，如「登录页可上线」"
               value={newBranchName}
               onChange={(e) => setNewBranchName(e.target.value)}
               onKeyDown={(e) => {
@@ -228,7 +228,7 @@ export function KanbanBoard() {
           </div>
         ) : (
           <button type="button" className="kanban-empty__cta" onClick={() => setAddingBranch(true)}>
-            + 创建第一条支线
+            + 创建第一个目标
           </button>
         )}
       </div>

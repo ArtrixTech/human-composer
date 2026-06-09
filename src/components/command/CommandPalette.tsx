@@ -74,12 +74,17 @@ export function CommandPalette() {
             action: () => selectProjectView(p.id),
           }),
         );
-    } else if (q.startsWith("/branch ") || q.startsWith("支线 ")) {
-      const name = q.replace(/^(\/branch|支线)\s+/i, "");
+    } else if (
+      q.startsWith("/outcome ") ||
+      q.startsWith("目标 ") ||
+      q.startsWith("/branch ") ||
+      q.startsWith("支线 ")
+    ) {
+      const name = q.replace(/^(\/(outcome|branch)|目标|支线)\s+/i, "");
       if (name)
         items.push({
-          id: "branch-new",
-          label: `创建支线「${name}」`,
+          id: "outcome-new",
+          label: `创建目标「${name}」`,
           group: "命令",
           action: () => createBranch(name),
         });
@@ -94,42 +99,42 @@ export function CommandPalette() {
         });
     } else if (q === "完成" || q === "done" || q.startsWith("/complete")) {
       const active = runwaySnapshot?.lanes
-        .flatMap((l) => l.tasks)
-        .find((t) => t.task.status === "active");
+        .flatMap((l) => l.actions)
+        .find((t) => t.action.status === "active");
       if (active)
         items.push({
           id: "complete",
-          label: `完成「${active.task.title}」`,
+          label: `完成「${active.action.title}」`,
           group: "命令",
-          action: () => completeTask(active.task.id, active.projectId),
+          action: () => completeTask(active.action.id, active.projectId),
         });
     } else if (q.startsWith("开始 ") || q.startsWith("start ")) {
       const name = q.replace(/^(开始|start)\s+/i, "");
       runwaySnapshot?.lanes.forEach((lane) => {
-        lane.tasks
-          .filter((t) => t.task.title.toLowerCase().includes(name))
+        lane.actions
+          .filter((t) => t.action.title.toLowerCase().includes(name))
           .forEach((t) =>
             items.push({
-              id: `start-${t.task.id}`,
-              label: t.task.title,
+              id: `start-${t.action.id}`,
+              label: t.action.title,
               group: lane.lane.name,
-              action: () => claimTask(t.task.id, lane.lane.id, t.projectId),
+              action: () => claimTask(t.action.id, lane.lane.id, t.projectId),
             }),
           );
       });
     } else {
       runwaySnapshot?.lanes.forEach((lane) => {
-        lane.tasks.forEach((t) => {
-          if (!q || t.task.title.toLowerCase().includes(q))
+        lane.actions.forEach((t) => {
+          if (!q || t.action.title.toLowerCase().includes(q))
             items.push({
-              id: `lane-task-${t.task.id}`,
-              label: `${t.task.title} (${lane.lane.name})`,
+              id: `lane-task-${t.action.id}`,
+              label: `${t.action.title} (${lane.lane.name})`,
               group: "泳道",
-              action: () => claimTask(t.task.id, lane.lane.id, t.projectId),
+              action: () => claimTask(t.action.id, lane.lane.id, t.projectId),
             });
         });
       });
-      graph?.tasks.forEach((t) => {
+      graph?.actions.forEach((t) => {
         if (!q || t.title.toLowerCase().includes(q))
           items.push({
             id: `graph-task-${t.id}`,
@@ -140,18 +145,18 @@ export function CommandPalette() {
             },
           });
       });
-      graph?.branches.forEach((b) => {
+      graph?.outcomes.forEach((b) => {
         if (!q || b.name.toLowerCase().includes(q)) {
           items.push({
             id: `archive-branch-${b.id}`,
-            label: `归档支线「${b.name}」`,
-            group: "支线",
+            label: `归档目标「${b.name}」`,
+            group: "目标",
             action: () => archiveBranch(b.id),
           });
           items.push({
             id: `delete-branch-${b.id}`,
-            label: `删除支线「${b.name}」`,
-            group: "支线",
+            label: `删除目标「${b.name}」`,
+            group: "目标",
             action: () => void deleteBranch(b.id),
           });
         }
@@ -262,7 +267,7 @@ export function CommandPalette() {
           <Search size={16} />
           <input
             ref={inputRef}
-            placeholder="搜索任务、项目，或 /branch /switch…"
+            placeholder="搜索行动、项目，或 /outcome /switch…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {

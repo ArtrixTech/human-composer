@@ -48,20 +48,20 @@ export function TaskBlock({
   const [externalOpen, setExternalOpen] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: ctx.task.id,
-    data: { task: ctx, laneId, taskId: ctx.task.id },
+    id: ctx.action.id,
+    data: { task: ctx, laneId, taskId: ctx.action.id },
   });
 
-  const isPostponed = ctx.task.postponed && ctx.task.status === "ready";
+  const isPostponed = ctx.action.postponed && ctx.action.status === "ready";
   const kind = statusKind(isActive, showClaim, isPending, isPostponed);
-  const meta = [ctx.projectName, ctx.branchName].filter(Boolean).join(" · ");
+  const meta = [ctx.projectName, ctx.outcomeName].filter(Boolean).join(" · ");
   const blockerLabel =
     blockerTitles.length > 0
       ? blockerTitles.slice(0, 2).join("、") + (blockerTitles.length > 2 ? "…" : "")
       : "依赖";
 
   const canDelegate =
-    !isPending && !isWatch && ctx.task.taskType === "normal" && ctx.task.status !== "done";
+    !isPending && !isWatch && ctx.action.taskType === "normal" && ctx.action.status !== "done";
 
   const metaLine = isPending ? (
     <span className="task-card__blocker">等待 {blockerLabel}</span>
@@ -89,11 +89,11 @@ export function TaskBlock({
         <div className="task-card__content">
           <div className="task-card__row-top">
             <TaskCardStatus kind={kind} />
-            {ctx.task.priority != null && (
-              <span className="task-card__priority">P{ctx.task.priority}</span>
+            {ctx.action.priority != null && (
+              <span className="task-card__priority">P{ctx.action.priority}</span>
             )}
-            <span className="task-card__title">{ctx.task.title}</span>
-            <span className="task-card__time">{formatEstimate(ctx.task.estimatedMinutes, isPending)}</span>
+            <span className="task-card__title">{ctx.action.title}</span>
+            <span className="task-card__time">{formatEstimate(ctx.action.estimatedMinutes, isPending)}</span>
           </div>
           {metaLine ? <div className="task-card__meta">{metaLine}</div> : null}
 
@@ -103,11 +103,11 @@ export function TaskBlock({
                 type="button"
                 className="task-card__action task-card__action--postpone"
                 aria-label="稍后"
-                title="稍后再做，先做泳道里其他任务"
+                title="稍后再做，先做泳道里其他行动"
                 onPointerDown={stopCardDrag}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void postponeTask(ctx.task.id, laneId, ctx.projectId);
+                  void postponeTask(ctx.action.id, laneId, ctx.projectId);
                 }}
               >
                 <Clock size={12} />
@@ -120,7 +120,7 @@ export function TaskBlock({
                 onPointerDown={stopCardDrag}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void claimTask(ctx.task.id, laneId, ctx.projectId);
+                  void claimTask(ctx.action.id, laneId, ctx.projectId);
                 }}
               >
                 <Play size={12} />
@@ -133,7 +133,7 @@ export function TaskBlock({
                 onPointerDown={stopCardDrag}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void claimTask(ctx.task.id, laneId, ctx.projectId);
+                  void claimTask(ctx.action.id, laneId, ctx.projectId);
                 }}
               >
                 现在做
@@ -160,7 +160,7 @@ export function TaskBlock({
               onPointerDown={stopCardDrag}
               onClick={(e) => {
                 e.stopPropagation();
-                void archiveTask(ctx.task.id, ctx.projectId);
+                void archiveTask(ctx.action.id, ctx.projectId);
               }}
             >
               <Archive size={12} />

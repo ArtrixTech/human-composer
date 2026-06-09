@@ -22,27 +22,27 @@ export interface LaneCtx {
 /** A task that is actively being worked on by the user (not delegated externally). */
 export function isFocusActive(ctx: TodayTaskContext): boolean {
   return (
-    ctx.task.status === "active" &&
-    !(ctx.task.taskType === "external" &&
-      (ctx.task.externalStatus === "delegated" ||
-        ctx.task.externalStatus === "needs_review"))
+    ctx.action.status === "active" &&
+    !(ctx.action.taskType === "external" &&
+      (ctx.action.externalStatus === "delegated" ||
+        ctx.action.externalStatus === "needs_review"))
   );
 }
 
 /** A task that is externally delegated or awaiting review. */
 export function isExternalActive(ctx: TodayTaskContext): boolean {
   return (
-    ctx.task.taskType === "external" &&
-    (ctx.task.externalStatus === "delegated" ||
-      ctx.task.externalStatus === "needs_review")
+    ctx.action.taskType === "external" &&
+    (ctx.action.externalStatus === "delegated" ||
+      ctx.action.externalStatus === "needs_review")
   );
 }
 
 /** Ready task eligible for claim (skips postponed unless fallback). */
 export function isClaimCandidate(ctx: TodayTaskContext): boolean {
   return (
-    ctx.task.status === "ready" &&
-    !ctx.task.postponed &&
+    ctx.action.status === "ready" &&
+    !ctx.action.postponed &&
     !isExternalActive(ctx)
   );
 }
@@ -52,7 +52,7 @@ export function findFirstClaimableIndex(tasks: TodayTaskContext[]): number {
   const candidate = tasks.findIndex(isClaimCandidate);
   if (candidate >= 0) return candidate;
   return tasks.findIndex(
-    (t) => t.task.status === "ready" && !isExternalActive(t),
+    (t) => t.action.status === "ready" && !isExternalActive(t),
   );
 }
 
@@ -60,7 +60,7 @@ export function findFirstClaimableIndex(tasks: TodayTaskContext[]): number {
 export function findFocusActives(snapshot: DayRunwaySnapshot): LaneCtx[] {
   const result: LaneCtx[] = [];
   for (const lane of snapshot.lanes) {
-    for (const ctx of lane.tasks) {
+    for (const ctx of lane.actions) {
       if (isFocusActive(ctx)) {
         result.push({ ctx, laneId: lane.lane.id, laneName: lane.lane.name });
       }
@@ -73,7 +73,7 @@ export function findFocusActives(snapshot: DayRunwaySnapshot): LaneCtx[] {
 export function findWatchTasks(snapshot: DayRunwaySnapshot): LaneCtx[] {
   const result: LaneCtx[] = [];
   for (const lane of snapshot.lanes) {
-    for (const ctx of lane.tasks) {
+    for (const ctx of lane.actions) {
       if (isExternalActive(ctx)) {
         result.push({ ctx, laneId: lane.lane.id, laneName: lane.lane.name });
       }
@@ -85,7 +85,7 @@ export function findWatchTasks(snapshot: DayRunwaySnapshot): LaneCtx[] {
 /** Tasks awaiting user review (external completed, not yet approved/reworked). */
 export function findNeedsReview(snapshot: DayRunwaySnapshot): LaneCtx[] {
   return findWatchTasks(snapshot).filter(
-    (lc) => lc.ctx.task.externalStatus === "needs_review",
+    (lc) => lc.ctx.action.externalStatus === "needs_review",
   );
 }
 
@@ -96,9 +96,9 @@ export function findNeedsReview(snapshot: DayRunwaySnapshot): LaneCtx[] {
 export function findFirstClaimable(snapshot: DayRunwaySnapshot): LaneCtx | null {
   for (const lane of snapshot.lanes) {
     if (lane.lane.laneType === "watch") continue;
-    const idx = findFirstClaimableIndex(lane.tasks);
+    const idx = findFirstClaimableIndex(lane.actions);
     if (idx >= 0) {
-      return { ctx: lane.tasks[idx], laneId: lane.lane.id, laneName: lane.lane.name };
+      return { ctx: lane.actions[idx], laneId: lane.lane.id, laneName: lane.lane.name };
     }
   }
   return null;
@@ -107,7 +107,7 @@ export function findFirstClaimable(snapshot: DayRunwaySnapshot): LaneCtx | null 
 /** Ready tasks in a lane eligible for claim. */
 export function filterLaneClaimCandidates(lane: DayLaneSnapshot): TodayTaskContext[] {
   if (lane.lane.laneType === "watch") return [];
-  return lane.tasks.filter((t) => t.task.status === "ready" && !isExternalActive(t));
+  return lane.actions.filter((t) => t.action.status === "ready" && !isExternalActive(t));
 }
 
 /** Claimable tasks in a lane sorted by global recommendation order. */
@@ -118,24 +118,24 @@ export function findLaneClaimableOptions(
   const candidates = filterLaneClaimCandidates(lane);
   if (candidates.length === 0) return [];
 
-  const orderMap = new Map(recommendations.map((r, i) => [r.task.id, i]));
+  const orderMap = new Map(recommendations.map((r, i) => [r.action.id, i]));
 
   return [...candidates].sort((a, b) => {
-    const oa = orderMap.get(a.task.id);
-    const ob = orderMap.get(b.task.id);
+    const oa = orderMap.get(a.action.id);
+    const ob = orderMap.get(b.action.id);
     if (oa !== undefined && ob !== undefined) return oa - ob;
     if (oa !== undefined) return -1;
     if (ob !== undefined) return 1;
-    if (!a.task.postponed && b.task.postponed) return -1;
-    if (a.task.postponed && !b.task.postponed) return 1;
-    return a.task.title.localeCompare(b.task.title, "zh-CN");
+    if (!a.action.postponed && b.action.postponed) return -1;
+    if (a.action.postponed && !b.action.postponed) return 1;
+    return a.action.title.localeCompare(b.action.title, "zh-CN");
   });
 }
 
 /** Next claimable task within a single lane (per-lane, not global first). */
 export function findLaneClaimable(lane: DayLaneSnapshot): TodayTaskContext | null {
-  const idx = findFirstClaimableIndex(lane.tasks);
-  return idx >= 0 ? lane.tasks[idx] : null;
+  const idx = findFirstClaimableIndex(lane.actions);
+  return idx >= 0 ? lane.actions[idx] : null;
 }
 
 /** Split lane tasks: focus queue first, external/delegated always last. */
@@ -158,7 +158,7 @@ export function normalizeLaneTaskOrder(
   orderedIds: string[],
 ): string[] {
   const externalIds = new Set(
-    tasks.filter((t) => isExternalActive(t)).map((t) => t.task.id),
+    tasks.filter((t) => isExternalActive(t)).map((t) => t.action.id),
   );
   const focusIds = orderedIds.filter((id) => !externalIds.has(id));
   const extIds = orderedIds.filter((id) => externalIds.has(id));
@@ -192,14 +192,14 @@ export function normalizeLaneOrder(
 export function getLaneState(
   lane: DayLaneSnapshot,
 ): { state: LaneState; task: TodayTaskContext | null } {
-  const focusActive = lane.tasks.find((t) => isFocusActive(t));
+  const focusActive = lane.actions.find((t) => isFocusActive(t));
   if (focusActive) return { state: "active", task: focusActive };
 
-  const review = lane.tasks.find((t) => t.task.externalStatus === "needs_review");
+  const review = lane.actions.find((t) => t.action.externalStatus === "needs_review");
   if (review) return { state: "review", task: review };
 
-  const external = lane.tasks.find(
-    (t) => isExternalActive(t) && t.task.externalStatus === "delegated",
+  const external = lane.actions.find(
+    (t) => isExternalActive(t) && t.action.externalStatus === "delegated",
   );
   if (external) return { state: "external", task: external };
 

@@ -1,11 +1,13 @@
 import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
-import { ChevronDown, Pencil, X } from "lucide-react";
+import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { ChevronDown, GripVertical, Pencil, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { DayLaneSnapshot, TaskDependency } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { LaneTrack } from "./LaneTrack";
+import { partitionLaneTasks } from "./runwayTaskUtils";
 
 const VISIBLE_CAP = 7;
 
@@ -24,22 +26,36 @@ export function LaneRow({
   const [confirmClose, setConfirmClose] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
 
+  const sortableId = `lane-${laneSnapshot.lane.id}`;
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortableRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: sortableId,
+    data: { type: "lane", laneId: laneSnapshot.lane.id },
+  });
+
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: sortableId,
+    data: { laneId: laneSnapshot.lane.id },
+  });
+
   useEffect(() => {
     setName(laneSnapshot.lane.name);
   }, [laneSnapshot.lane.name]);
 
-  const { setNodeRef, isOver } = useDroppable({
-    id: `lane-${laneSnapshot.lane.id}`,
-    data: { laneId: laneSnapshot.lane.id },
-  });
-
   const isWatch = laneSnapshot.lane.laneType === "watch";
-  const needsReview = laneSnapshot.tasks.some((t) => t.task.externalStatus === "needs_review");
-  const hiddenCount = Math.max(0, laneSnapshot.tasks.length - VISIBLE_CAP);
-  const displayTasks =
-    showAllTasks || laneSnapshot.tasks.length <= VISIBLE_CAP
-      ? laneSnapshot.tasks
-      : laneSnapshot.tasks.slice(0, VISIBLE_CAP);
+  const needsReview = laneSnapshot.actions.some((t) => t.action.externalStatus === "needs_review");
+  const { focus, external } = partitionLaneTasks(laneSnapshot.actions);
+  const hiddenCount = Math.max(0, focus.length - VISIBLE_CAP);
+  const displayFocus =
+    showAllTasks || focus.length <= VISIBLE_CAP ? focus : focus.slice(0, VISIBLE_CAP);
+  const sortableTaskIds = [...displayFocus, ...external].map((t) => t.action.id);
 
   const onRename = () => {
     if (name.trim() && name !== laneSnapshot.lane.name) {
@@ -49,7 +65,7 @@ export function LaneRow({
   };
 
   const onClose = () => {
-    if (laneSnapshot.tasks.length === 0) {
+    if (laneSnapshot.actions.length === 0) {
       void closeLane(laneSnapshot.lane.id);
       return;
     }
@@ -63,12 +79,28 @@ export function LaneRow({
     .filter(Boolean)
     .join(" · ");
 
+  const sectionStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   return (
     <section
-      ref={setNodeRef}
-      className={`lane-section lane-section--${laneSnapshot.lane.laneType}${isOver ? " lane-section--over" : ""}`}
+      ref={setSortableRef}
+      style={sectionStyle}
+      className={`lane-section lane-section--${laneSnapshot.lane.laneType}${isOver ? " lane-section--over" : ""}${isDragging ? " lane-section--dragging" : ""}`}
     >
       <div className="lane-section__header">
+        <button
+          type="button"
+          className="lane-section__drag"
+          aria-label="拖拽调整泳道顺序"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={14} />
+        </button>
+
         {editing ? (
           <input
             className="lane-section__name-input"
@@ -125,7 +157,7 @@ export function LaneRow({
 
       {confirmClose && (
         <div className="lane-section__confirm">
-          <span>确认关闭？任务将合并到其他泳道</span>
+          <span>确认关闭？行动将合并到其他泳道</span>
           <button type="button" onClick={() => setConfirmClose(false)}>
             取消
           </button>
@@ -142,14 +174,15 @@ export function LaneRow({
         </div>
       )}
 
-      <div className={`lane-section__body${collapsed ? " lane-section__body--collapsed" : ""}`}>
-        <SortableContext
-          items={displayTasks.map((t) => t.task.id)}
-          strategy={horizontalListSortingStrategy}
-        >
+      <div
+        ref={setDropRef}
+        className={`lane-section__body${collapsed ? " lane-section__body--collapsed" : ""}`}
+      >
+        <SortableContext items={sortableTaskIds} strategy={horizontalListSortingStrategy}>
           <LaneTrack
             laneId={laneSnapshot.lane.id}
-            tasks={displayTasks}
+            focusTasks={displayFocus}
+            externalTasks={external}
             isWatch={isWatch}
             dependencies={dependencies}
           />

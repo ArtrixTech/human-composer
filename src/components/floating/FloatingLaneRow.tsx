@@ -57,24 +57,24 @@ export function FloatingLaneRow({
           <div className="floating__lane-picks" onClick={(e) => e.stopPropagation()}>
             {claimableOptions.map((option, index) => (
               <button
-                key={option.task.id}
+                key={option.action.id}
                 type="button"
                 className={
                   index === 0
                     ? "floating__lane-pick floating__lane-pick--top"
                     : "floating__lane-pick"
                 }
-                title={option.task.title}
-                onClick={() => onClaim(option.task.id, laneId, option.projectId)}
+                title={option.action.title}
+                onClick={() => onClaim(option.action.id, laneId, option.projectId)}
               >
-                {option.task.title}
+                {option.action.title}
               </button>
             ))}
           </div>
         ) : task ? (
-          <span className="floating__lane-row-task">{task.task.title}</span>
+          <span className="floating__lane-row-task">{task.action.title}</span>
         ) : (
-          <span className="floating__lane-row-empty">暂无任务</span>
+          <span className="floating__lane-row-empty">暂无行动</span>
         )}
       </div>
       <div className="floating__lane-row-actions" onClick={(e) => e.stopPropagation()}>
@@ -100,7 +100,7 @@ export function FloatingLaneRow({
                 <Clock size={14} />
               </button>
             )}
-            {!isWatch && task.task.taskType === "normal" && (
+            {!isWatch && task.action.taskType === "normal" && (
               <button
                 type="button"
                 className="floating__icon-btn floating__icon-btn--delegate"

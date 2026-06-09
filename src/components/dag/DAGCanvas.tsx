@@ -13,12 +13,12 @@ import * as api from "../../api/tauri";
 import { buildSwimLaneLayout, layoutMetrics } from "../../layout/swimLaneLayout";
 import { useAppStore } from "../../store/appStore";
 import { BlockingEdge, BlockingEdgeMarker, SequentialEdge } from "./CustomEdges";
-import { AddTaskNode, TaskNode, type TaskNodeData } from "./TaskNode";
+import { ActionNode, AddTaskNode, type ActionNodeData } from "./ActionNode";
 import { LaneLabelNode } from "./LaneLabelNode";
 import "./DAGCanvas.css";
 
 const nodeTypes = {
-  task: TaskNode,
+  action: ActionNode,
   laneLabel: LaneLabelNode,
   addTask: AddTaskNode,
 };
@@ -44,8 +44,8 @@ export function DAGCanvas() {
   const layout = useMemo(() => {
     if (!graph) return { nodes: [], edges: [] };
     return buildSwimLaneLayout(
-      graph.branches,
-      graph.tasks,
+      graph.outcomes,
+      graph.actions,
       graph.dependencies,
       hideDoneTasks,
     );
@@ -68,13 +68,13 @@ export function DAGCanvas() {
     void api.listArchivedBranches(activeProjectId).then((branches) => {
       setArchivedBranches(branches.map((b) => ({ id: b.id, name: b.name })));
     });
-  }, [showArchived, activeProjectId, graph?.branches.length]);
+  }, [showArchived, activeProjectId, graph?.outcomes.length]);
 
   useEffect(() => {
     setNodes(
       layout.nodes.map((node) => {
-        if (node.type === "task") {
-          const data = node.data as TaskNodeData;
+        if (node.type === "action") {
+          const data = node.data as ActionNodeData;
           const depCount =
             graph?.dependencies.filter(
               (d) => d.taskId === data.task.id || d.dependsOnTaskId === data.task.id,
@@ -159,16 +159,16 @@ export function DAGCanvas() {
     );
   }
 
-  if (graph.branches.length === 0) {
+  if (graph.outcomes.length === 0) {
     return (
       <div className="dag-empty dag-empty--guide">
         <h3>开始编排你的项目</h3>
-        <p>创建第一条并行支线来组织任务</p>
+        <p>创建第一个目标来组织行动</p>
         {addingBranch ? (
           <div className="dag-empty__form">
             <input
               autoFocus
-              placeholder="支线名称"
+              placeholder="可衡量的目标，如「登录页可上线」"
               value={newBranchName}
               onChange={(e) => setNewBranchName(e.target.value)}
               onKeyDown={(e) => {
@@ -184,14 +184,14 @@ export function DAGCanvas() {
           </div>
         ) : (
           <button type="button" className="dag-empty__cta" onClick={() => setAddingBranch(true)}>
-            + 创建第一条支线
+            + 创建第一个目标
           </button>
         )}
       </div>
     );
   }
 
-  const canvasHeight = layoutMetrics.laneCount(graph.branches) * layoutMetrics.laneHeight;
+  const canvasHeight = layoutMetrics.laneCount(graph.outcomes) * layoutMetrics.laneHeight;
 
   return (
     <div className="dag-canvas">
@@ -199,7 +199,7 @@ export function DAGCanvas() {
         {addingBranch ? (
           <input
             autoFocus
-            placeholder="新支线名称"
+            placeholder="可衡量的目标，如「登录页可上线」"
             value={newBranchName}
             onChange={(e) => setNewBranchName(e.target.value)}
             onKeyDown={(e) => {
@@ -215,10 +215,10 @@ export function DAGCanvas() {
         ) : (
           <>
             <button type="button" onClick={() => setAddingBranch(true)}>
-              + 新支线
+              + 新目标
             </button>
             <button type="button" onClick={() => setShowArchived((v) => !v)}>
-              {showArchived ? "隐藏归档" : "归档支线"}
+              {showArchived ? "隐藏归档" : "归档目标"}
             </button>
           </>
         )}
@@ -244,7 +244,7 @@ export function DAGCanvas() {
         </div>
       )}
       <div className="dag-canvas__lanes" style={{ height: canvasHeight }}>
-        {graph.branches.map((branch, i) => (
+        {graph.outcomes.map((branch, i) => (
           <div
             key={branch.id}
             className="lane-background"
