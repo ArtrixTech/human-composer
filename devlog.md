@@ -195,4 +195,12 @@
 - **Rust**：`Outcome`/`Action` type alias；`recommend`/`auto_assign` 内部改名
 - **UI**：全局「目标-行动」文案；`OutcomeColumnHeader`/`ActionNode` 组件重命名；DetailPanel inline 重命名目标
 
+**Commit:** `418ca06`
+
+## 2026-06-09 — 泳道自动配色（可开关）(prev: `418ca06`)
+
+- **专注泳道**：按排序自动分配 8 色色相（左边框 + 名称色点）；等待泳道仍用黄色虚线
+- **可选**：今日安排标题栏调色板按钮切换；偏好存 `localStorage`（`hc-lane-colors-enabled`，默认开启）
+- **同步**：主窗口 `LaneRow` 与悬浮窗 `FloatingLaneRow` 共用同一套索引与开关
+
 **Commit:** _(pending)_
