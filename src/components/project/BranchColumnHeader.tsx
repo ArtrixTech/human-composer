@@ -102,11 +102,7 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
       onDelete(branchId, taskCount);
       return;
     }
-    const msg =
-      taskCount > 0
-        ? `删除支线「${label}」及其 ${taskCount} 个任务？此操作不可撤销。`
-        : `删除空支线「${label}」？`;
-    if (window.confirm(msg)) void deleteBranch(branchId);
+    void deleteBranch(branchId);
   };
 
   const menu = menuOpen && menuPos
@@ -145,10 +141,8 @@ function BranchColumnHeaderComponent({ data }: NodeProps) {
             type="button"
             onClick={() => {
               setMenuOpen(false);
-              if (window.confirm(`归档支线「${label}」？`)) {
-                if (onArchive) onArchive(branchId);
-                else void archiveBranch(branchId);
-              }
+              if (onArchive) onArchive(branchId);
+              else void archiveBranch(branchId);
             }}
           >
             归档

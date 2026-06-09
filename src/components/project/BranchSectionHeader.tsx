@@ -59,11 +59,7 @@ export function BranchSectionHeader({
 
   const confirmDelete = () => {
     setMenuOpen(false);
-    const msg =
-      total > 0
-        ? `删除支线「${branch.name}」及其 ${total} 个任务？此操作不可撤销。`
-        : `删除空支线「${branch.name}」？`;
-    if (window.confirm(msg)) void deleteBranch(branch.id);
+    void deleteBranch(branch.id);
   };
 
   const style = {
@@ -127,7 +123,7 @@ export function BranchSectionHeader({
               type="button"
               onClick={() => {
                 setMenuOpen(false);
-                if (window.confirm(`归档支线「${branch.name}」？`)) void archiveBranch(branch.id);
+                void archiveBranch(branch.id);
               }}
             >
               归档

@@ -145,14 +145,7 @@ export function KanbanBoard() {
               onMoveRight: () => moveColumn(branchId, "right"),
               onRename: (id: string, name: string) => void renameBranch(id, name),
               onArchive: (id: string) => void archiveBranch(id),
-              onDelete: (id: string, count: number) => {
-                const name = graph.branches.find((b) => b.id === id)?.name ?? "支线";
-                const msg =
-                  count > 0
-                    ? `删除支线「${name}」及其 ${count} 个任务？`
-                    : `删除空支线「${name}」？`;
-                if (window.confirm(msg)) void deleteBranch(id);
-              },
+              onDelete: (id: string) => void deleteBranch(id),
             },
           };
         }

@@ -82,6 +82,7 @@ interface AppStore {
   createBranch: (name: string) => Promise<void>;
   renameBranch: (branchId: string, name: string) => Promise<void>;
   archiveBranch: (branchId: string) => Promise<void>;
+  unarchiveBranch: (branchId: string) => Promise<void>;
   deleteBranch: (branchId: string) => Promise<void>;
   reorderBranches: (branchIds: string[]) => Promise<void>;
   setTaskPriority: (taskId: string, priority: number | null) => Promise<void>;
@@ -427,19 +428,32 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   archiveBranch: async (branchId) => {
-    const { activeProjectId } = get();
+    const { activeProjectId, graph } = get();
     if (!activeProjectId) return;
+    const name = graph?.branches.find((b) => b.id === branchId)?.name ?? "支线";
     await api.archiveBranch(activeProjectId, branchId);
     await get().refreshAll();
-    useToastStore.getState().push({ message: "支线已归档" });
+    useToastStore.getState().push({
+      message: `已归档「${name}」`,
+      undo: () => get().unarchiveBranch(branchId),
+    });
+  },
+
+  unarchiveBranch: async (branchId) => {
+    const { activeProjectId } = get();
+    if (!activeProjectId) return;
+    await api.unarchiveBranch(activeProjectId, branchId);
+    await get().refreshAll();
+    useToastStore.getState().push({ message: "已恢复支线" });
   },
 
   deleteBranch: async (branchId) => {
-    const { activeProjectId } = get();
+    const { activeProjectId, graph } = get();
     if (!activeProjectId) return;
+    const name = graph?.branches.find((b) => b.id === branchId)?.name ?? "支线";
     await api.deleteBranch(activeProjectId, branchId);
     await get().refreshAll();
-    useToastStore.getState().push({ message: "支线已删除" });
+    useToastStore.getState().push({ message: `已删除「${name}」` });
   },
 
   reorderBranches: async (branchIds) => {

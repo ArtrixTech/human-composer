@@ -152,12 +152,7 @@ export function CommandPalette() {
             id: `delete-branch-${b.id}`,
             label: `删除支线「${b.name}」`,
             group: "支线",
-            action: () => {
-              const count = graph?.tasks.filter((t) => t.branchId === b.id).length ?? 0;
-              const msg =
-                count > 0 ? `删除支线「${b.name}」及其 ${count} 个任务？` : `删除支线「${b.name}」？`;
-              if (window.confirm(msg)) void deleteBranch(b.id);
-            },
+            action: () => void deleteBranch(b.id),
           });
         }
       });

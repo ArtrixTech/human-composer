@@ -179,4 +179,11 @@
 - **独立通知**：临时反馈改为悬浮窗正下方 `floating-notice` 圆角胶囊，2s 自动收起，主面板高度不变
 - **泳道排序**：折叠/展开态 `sortLanesForDisplay`，watch 泳道置底；外部任务行黄色虚线样式
 
-**Commit:** _(pending)_
+**Commit:** `b7cc00b`
+
+## 2026-06-09 — 支线归档删除修复 + 概念重命名计划 (prev: `b7cc00b`)
+
+- **支线操作修复**：移除 `window.confirm`（Tauri WebView 无效），归档/删除点击即执行；归档 Toast 支持 Undo（`unarchiveBranch`）
+- **重命名计划**：新增 `.cursor/plans/支线任务概念重命名_2e0b640e.plan.md`，决策 **A+α**（UI「目标-行动」、代码 `Outcome`/`Action`，DB/IPC 保持 branch/task 别名）
+
+**Commit:** `9eb1966`

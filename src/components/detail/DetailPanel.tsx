@@ -52,8 +52,6 @@ export function DetailPanel() {
     await refreshAll();
   };
 
-  const branchTaskCount = graph?.tasks.filter((t) => t.branchId === branch?.id).length ?? 0;
-
   const removeDep = async (dependsOnTaskId: string) => {
     await api.removeDependency(task.id, dependsOnTaskId);
     await refreshAll();
@@ -164,22 +162,14 @@ export function DetailPanel() {
             <button
               type="button"
               className="detail-panel__archive"
-              onClick={() => {
-                if (window.confirm(`归档支线「${branch.name}」？`)) void archiveBranchStore(branch.id);
-              }}
+              onClick={() => void archiveBranchStore(branch.id)}
             >
               归档支线
             </button>
             <button
               type="button"
               className="detail-panel__archive"
-              onClick={() => {
-                const msg =
-                  branchTaskCount > 0
-                    ? `删除支线「${branch.name}」及其 ${branchTaskCount} 个任务？`
-                    : `删除空支线「${branch.name}」？`;
-                if (window.confirm(msg)) void deleteBranch(branch.id);
-              }}
+              onClick={() => void deleteBranch(branch.id)}
             >
               删除支线
             </button>
